@@ -1,0 +1,19 @@
+{
+  "name": "vesta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VESTA — Expanding Settlements Through Accord",
+  "type": "module",
+  "main": "src/vesta.ts",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "urd": "github:fchurca/urd"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
