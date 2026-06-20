@@ -20,7 +20,7 @@ var RESOURCE_EMOJI = {
   wool: "\uD83D\uDC11",
   grain: "\uD83C\uDF3E",
   ore: "\uD83E\uDEA8",
-  desert: "\uD83C\uDFDC",
+  desert: "\uD83C\uDF35",
 }
 
 var RESOURCE_COLORS = {
@@ -162,25 +162,31 @@ var Game = {
   },
 
   produce: function (total) {
-    var gains = []
+    var gainsByPlayer = {}
     for (var p = 0; p < game.players.length; p++) {
-      var player = game.players[p]
-      var playerGains = {}
-      var allSettlements = player.settlements.concat(player.cities)
+      gainsByPlayer[p] = {}
+    }
 
-      for (var s = 0; s < allSettlements.length; s++) {
-        var site = allSettlements[s]
-        var tile = Game.tileAt(site.q, site.r)
-        if (tile && tile.number === total) {
-          var r = tile.resource
-          var amount = site.type === "city" ? 2 : 1
-          player.resources[r] = (player.resources[r] || 0) + amount
-          playerGains[r] = (playerGains[r] || 0) + amount
+    for (var i = 0; i < game.board.tiles.length; i++) {
+      var tile = game.board.tiles[i]
+      if (tile.resource === DESERT || tile.number !== total) continue
+
+      var r = tile.resource
+      for (var c = 0; c < 6; c++) {
+        var vk = vertexKey(tile.coord.q, tile.coord.r, c)
+        var bldg = Game.findBuilding(vk)
+        if (bldg) {
+          var amount = bldg.type === "city" ? 2 : 1
+          game.players[bldg.player].resources[r] += amount
+          gainsByPlayer[bldg.player][r] = (gainsByPlayer[bldg.player][r] || 0) + amount
         }
       }
+    }
 
-      for (var r in playerGains) {
-        gains.push({ player: p, resource: r, amount: playerGains[r] })
+    var gains = []
+    for (var gP = 0; gP < game.players.length; gP++) {
+      for (var gR in gainsByPlayer[gP]) {
+        gains.push({ player: gP, resource: gR, amount: gainsByPlayer[gP][gR] })
       }
     }
 
@@ -447,6 +453,52 @@ var Game = {
       if (game.players[i].vp >= 10) return i
     }
     return -1
+  },
+
+  getValidPositions: function (mode) {
+    var result = []
+    var cp = game.currentPlayer
+
+    if (mode === "settlement") {
+      for (var k in _vertexCache) {
+        var v = _vertexCache[k]
+        var h = v.hexes[0]
+        var r = Game.canBuildSettlement(cp, h.q, h.r, h.corner, false)
+        if (r.ok) result.push({ type: "vertex", key: k })
+      }
+    } else if (mode === "city") {
+      var player = game.players[cp]
+      for (var i = 0; i < player.settlements.length; i++) {
+        var s = player.settlements[i]
+        result.push({ type: "vertex", key: vertexKey(s.q, s.r, s.corner) })
+      }
+    } else if (mode === "road") {
+      for (var ek in _edgeCache) {
+        var e = _edgeCache[ek]
+        var r2 = Game.canBuildRoad(cp, e.hex.q, e.hex.r, e.hex.c1, e.hex.q, e.hex.r, e.hex.c2, false, null)
+        if (r2.ok) result.push({ type: "edge", key: ek, edge: e })
+      }
+    } else if (mode === "initial-settlement") {
+      for (var k2 in _vertexCache) {
+        var v2 = _vertexCache[k2]
+        var h2 = v2.hexes[0]
+        var r3 = Game.canBuildSettlement(cp, h2.q, h2.r, h2.corner, true)
+        if (r3.ok) result.push({ type: "vertex", key: k2 })
+      }
+    } else if (mode === "initial-road") {
+      if (game.pendingSettlement) {
+        var ps = game.pendingSettlement
+        var svKey = vertexKey(ps.q, ps.r, ps.corner)
+        for (var ek2 in _edgeCache) {
+          var e2 = _edgeCache[ek2]
+          if (edgeTouchesVertex(ek2, svKey)) {
+            result.push({ type: "edge", key: ek2, edge: e2 })
+          }
+        }
+      }
+    }
+
+    return result
   },
 }
 

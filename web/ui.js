@@ -78,11 +78,13 @@ UIInstance.prototype.showGame = function () {
   var self = this
   this.appEl.innerHTML =
     '<div id="game">' +
+      '<div id="left-bar">' +
+        '<div id="actions"></div>' +
+        '<div id="log"></div>' +
+      '</div>' +
       '<div id="board-container"><canvas id="board"></canvas></div>' +
       '<div id="panel"></div>' +
     '</div>' +
-    '<div id="actions"></div>' +
-    '<div id="log"></div>' +
     '<div class="toast-container" id="toasts"></div>'
 
   this.toastContainer = document.getElementById("toasts")
@@ -93,6 +95,14 @@ UIInstance.prototype.showGame = function () {
     onVertexClick: function (q, r, corner, vKey) { self.onVertexClick(q, r, corner, vKey) },
     onEdgeClick: function (edge) { self.onEdgeClick(edge) },
   })
+
+  var escHandler = function (e) {
+    if (e.key === "Escape" && self._buildMode) {
+      self._buildMode = null
+      self.render()
+    }
+  }
+  document.addEventListener("keydown", escHandler)
 
   this.render()
   this.log("Click a hex corner to place a settlement")
@@ -115,31 +125,41 @@ UIInstance.prototype.renderPanel = function () {
     var p = game.players[i]
     var active = i === game.currentPlayer ? ' active' : ''
     html +=
-      '<div class="player-card' + active + '">' +
-        '<h3>' +
+      '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
+        '<div class="player-head">' +
           '<span class="player-name" style="color:' + PLAYER_COLORS[i] + '">' + p.name + '</span>' +
-          '<span class="player-vp">' + p.vp + ' VP</span>' +
-        '</h3>' +
-        '<div class="resources">' +
-          selfResourcePill("brick", p.resources.brick) +
-          selfResourcePill("lumber", p.resources.lumber) +
-          selfResourcePill("wool", p.resources.wool) +
-          selfResourcePill("grain", p.resources.grain) +
-          selfResourcePill("ore", p.resources.ore) +
+        '</div>' +
+        '<div class="player-stats">' +
+          '<span>\uD83C\uDF09' + 0 + '</span>' +
+          '<span>\uD83D\uDC82' + 0 + '</span>' +
+          '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
+          '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
+          '<span>\uD83E\uDE99' + p.vp + '</span>' +
+        '</div>' +
+        '<div class="resources-compact">' +
+          compactResource("brick", p.resources.brick) +
+          compactResource("lumber", p.resources.lumber) +
+          compactResource("wool", p.resources.wool) +
+          compactResource("grain", p.resources.grain) +
+          compactResource("ore", p.resources.ore) +
         '</div>' +
       '</div>'
   }
 
   panel.innerHTML = html
+
+  var cards = panel.querySelectorAll(".player-card")
+  for (var ci = 0; ci < cards.length; ci++) {
+    ;(function (idx) {
+      cards[ci].addEventListener("mouseenter", function () { setHighlightedPlayer(idx) })
+      cards[ci].addEventListener("mouseleave", function () { setHighlightedPlayer(null) })
+    })(parseInt(cards[ci].dataset.playerIdx))
+  }
 }
 
-function selfResourcePill(res, count) {
-  var color = RESOURCE_COLORS[res]
+function compactResource(res, count) {
   var emoji = RESOURCE_EMOJI[res]
-  return '<div class="resource-pill ' + res + '" style="border-left: 4px solid ' + color + '">' +
-    '<span class="emoji">' + emoji + '</span>' +
-    '<span class="count">' + count + '</span>' +
-  '</div>'
+  return '<span class="res-item">' + emoji + count + '</span>'
 }
 
 UIInstance.prototype.renderActions = function () {
@@ -153,19 +173,28 @@ UIInstance.prototype.renderActions = function () {
   var html = ''
 
   if (phase === "initial_first" || phase === "initial_second") {
-    html += '<div class="phase-label">' + cp.name + ' — ' + (phase === "initial_first" ? "First" : "Second") + ' settlement</div>'
+    var initColor = PLAYER_COLORS[game.currentPlayer]
+    html += '<div class="phase-label" style="background:' + initColor + '99;color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + ' — ' + (phase === "initial_first" ? "First" : "Second") + ' settlement</div>'
     if (game.setupStep === "road") {
       html += '<div style="color:var(--text-dim);font-size:0.85rem">Click an edge to place a road</div>'
+      setValidPositions("initial-road")
+      setClickMode("initial-road")
     } else {
       html += '<div style="color:var(--text-dim);font-size:0.85rem">Click a hex corner to place a settlement</div>'
+      setValidPositions("initial-settlement")
+      setClickMode("initial-settlement")
     }
   }
 
   if (phase === "play") {
-    html += '<div class="phase-label">' + cp.name + '\'s turn</div>'
+    var turnColor = PLAYER_COLORS[game.currentPlayer]
+    html += '<div class="phase-label" style="background:' + turnColor + '99;color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + '\'s turn</div>'
 
     if (game.dice) {
-      html += '<div id="dice-result">' + game.dice[0] + ' + ' + game.dice[1] + ' = ' + (game.dice[0] + game.dice[1]) + '</div>'
+      var f1 = String.fromCharCode(0x2680 + game.dice[0] - 1)
+      var f2 = String.fromCharCode(0x2680 + game.dice[1] - 1)
+      var total = game.dice[0] + game.dice[1]
+      html += '<div id="dice-result">' + f1 + f2 + ' ' + total + (total === 7 ? ' \uD83E\uDD77' : '') + '</div>'
     }
 
     html += '<div class="btn-row">'
@@ -180,14 +209,25 @@ UIInstance.prototype.renderActions = function () {
     if (game.rolled) {
       html += '<div class="phase-label" style="margin-top:4px">Build</div>'
       html += '<div class="btn-row">'
-      html += buildBtn("Road", BUILDING_COST.road, "build-road")
-      html += buildBtn("Settlement", BUILDING_COST.settlement, "build-settlement")
-      html += buildBtn("City", BUILDING_COST.city, "build-city")
+      html += buildBtn("Road", BUILDING_COST.road, "build-road", "road")
+      html += buildBtn("Settlement", BUILDING_COST.settlement, "build-settlement", "settlement")
+      html += buildBtn("City", BUILDING_COST.city, "build-city", "city")
       html += '</div>'
-      html += '<div style="font-size:0.8rem;color:var(--text-dim);margin-top:4px">Click the board to place</div>'
     }
 
-    this._buildMode = null
+    if (this._buildMode) {
+      var msgs = {
+        road: "Click an edge to build a road",
+        settlement: "Click a corner to build a settlement",
+        city: "Click a settlement to upgrade to city",
+      }
+      html += '<div id="build-status">' + (msgs[this._buildMode] || "") + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
+    }
+
+    if (!this._buildMode) {
+      setValidPositions(null)
+      setClickMode(null)
+    }
   }
 
   if (phase === "gameover") {
@@ -201,19 +241,27 @@ UIInstance.prototype.renderActions = function () {
   this.bindActionButtons()
 }
 
-function buildBtn(label, cost, id) {
+function buildBtn(label, cost, id, mode) {
   var cp2 = game.players[game.currentPlayer]
   var canAfford = true
   for (var r in cost) {
     if ((cp2.resources[r] || 0) < cost[r]) { canAfford = false; break }
   }
 
+  var canPlace = true
+  if (mode && game.phase === "play") {
+    var positions = Game.getValidPositions(mode)
+    canPlace = positions.length > 0
+  }
+
+  var disabled = (!canAfford || !canPlace)
+
   var costStr = ""
   for (var r2 in cost) {
     costStr += RESOURCE_EMOJI[r2] + cost[r2] + " "
   }
 
-  return '<button class="btn" id="' + id + '"' + (canAfford ? "" : " disabled") + ' title="' + costStr.trim() + '">' + label + '</button>'
+  return '<button class="btn" id="' + id + '"' + (disabled ? " disabled" : "") + ' title="' + costStr.trim() + '">' + label + '</button>'
 }
 
 UIInstance.prototype.bindActionButtons = function () {
@@ -236,6 +284,7 @@ UIInstance.prototype.bindActionButtons = function () {
   var endTurn = document.getElementById("end-turn-btn")
   if (endTurn) {
     endTurn.addEventListener("click", function () {
+      self._buildMode = null
       Game.nextTurn()
       self.render()
     })
@@ -245,7 +294,9 @@ UIInstance.prototype.bindActionButtons = function () {
   if (buildRoad) {
     buildRoad.addEventListener("click", function () {
       self._buildMode = "road"
-      self.showToast("Click an edge to build a road")
+      setValidPositions("road")
+      setClickMode("road")
+      self.render()
     })
   }
 
@@ -253,7 +304,9 @@ UIInstance.prototype.bindActionButtons = function () {
   if (buildSettlement) {
     buildSettlement.addEventListener("click", function () {
       self._buildMode = "settlement"
-      self.showToast("Click a corner to build a settlement")
+      setValidPositions("settlement")
+      setClickMode("settlement")
+      self.render()
     })
   }
 
@@ -261,7 +314,9 @@ UIInstance.prototype.bindActionButtons = function () {
   if (buildCity) {
     buildCity.addEventListener("click", function () {
       self._buildMode = "city"
-      self.showToast("Click a settlement to upgrade to city")
+      setValidPositions("city")
+      setClickMode("city")
+      self.render()
     })
   }
 
@@ -269,6 +324,14 @@ UIInstance.prototype.bindActionButtons = function () {
   if (newGame) {
     newGame.addEventListener("click", function () {
       self.showSetup()
+    })
+  }
+
+  var cancelBtn = document.getElementById("cancel-build-btn")
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", function () {
+      self._buildMode = null
+      self.render()
     })
   }
 }
