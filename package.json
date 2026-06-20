@@ -7,7 +7,9 @@
   "main": "src/vesta.ts",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test"
+    "test": "node --test",
+    "dev": "npx serve web",
+    "bake": "node web/bake.mjs"
   },
   "dependencies": {
     "urd": "github:fchurca/urd"

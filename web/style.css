@@ -1,0 +1,341 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1a1a1a;
+  --surface: #2a2520;
+  --border: #4a3f35;
+  --text: #e8dcc8;
+  --text-dim: #9a8f80;
+  --accent: #c8661c;
+  --accent-hover: #e07b30;
+  --brick: #b45309;
+  --lumber: #15803d;
+  --wool: #a8a29e;
+  --grain: #ca8a04;
+  --ore: #57534e;
+  --desert: #d6bd8a;
+  --settlement: #c8661c;
+  --city: #e07b30;
+  --road: #6b4c2a;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 1000px;
+  width: 100%;
+}
+
+h1 {
+  font-family: 'Times New Roman', serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+h2 {
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+/* ── Setup screen ──────────────────────────────────── */
+
+#setup {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 320px;
+}
+
+#setup label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+#setup input,
+#setup select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 1rem;
+}
+
+#setup input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.player-name-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* ── Game layout ───────────────────────────────────── */
+
+#game {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+#board-container {
+  flex-shrink: 0;
+}
+
+#board-container canvas {
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* ── Side panel ────────────────────────────────────── */
+
+#panel {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Player card ───────────────────────────────────── */
+
+.player-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.player-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(200, 102, 28, 0.3);
+}
+
+.player-card h3 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.player-name {
+  color: var(--text);
+}
+
+.player-vp {
+  color: var(--accent);
+}
+
+.resources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.resource-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.resource-pill .emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.resource-pill .count {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.brick .count { color: var(--brick); }
+.lumber .count { color: var(--lumber); }
+.wool .count { color: var(--wool); }
+.grain .count { color: var(--grain); }
+.ore .count { color: var(--ore); }
+
+/* ── Buttons ───────────────────────────────────────── */
+
+.btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: var(--border);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Action area ───────────────────────────────────── */
+
+#actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+#actions .phase-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+#dice-result {
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+}
+
+/* ── Log ───────────────────────────────────────────── */
+
+#log {
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+#log div {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+#log div:last-child {
+  border-bottom: none;
+}
+
+/* ── Modal overlay ─────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 32px 48px;
+  text-align: center;
+  min-width: 300px;
+}
+
+.modal h2 {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.modal p {
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+}
+
+/* ── Toast ─────────────────────────────────────────── */
+
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 0.9rem;
+  animation: fadeInOut 2s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-10px); }
+  15% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
