@@ -22,6 +22,13 @@ Relies on [URD](https://github.com/fchurca/urd) for verifiable randomness.
 - Development cards — private draws from shared deck (commutative primitives Soon™)
 - Robber
 
+## Links
+
+- 🐙 [GitHub](https://fchurca.github.io/vesta/)
+- 🔮 [Urd](https://fchurca.github.io/urd/)
+- 🏯 [La Crypta Dev](https://www.lacrypta.dev/hackathons/zaps/8ab7e22b-9b17-409a-8519-488c01aa1114)
+- 🌑 [Luna Negra](https://moon21.vercel.app/game/vesta)
+
 ## License
 
 BSD 2-Clause

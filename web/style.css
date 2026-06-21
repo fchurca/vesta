@@ -299,6 +299,39 @@ h2 {
   font-size: 1.1rem;
 }
 
+/* ── Footer ────────────────────────────────────────── */
+
+#foot {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  background: rgba(26, 26, 26, 0.85);
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  z-index: 50;
+}
+
+#foot span {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+#foot a {
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+#foot a:hover {
+  color: var(--accent);
+}
+
 /* ── Toast ─────────────────────────────────────────── */
 
 .toast-container {
