@@ -12,11 +12,21 @@ function UIInstance() {
 
 UIInstance.prototype.init = function () {
   this.appEl = document.getElementById("app")
+
+  var self = this
+  document.getElementById("foot").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-section]")
+    if (!btn) return
+    var el = document.getElementById(btn.getAttribute("data-section"))
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+  })
+
   this.showSetup()
 }
 
 UIInstance.prototype.showSetup = function () {
   var self = this
+  document.getElementById("foot").classList.remove("show-nav")
   this.appEl.innerHTML =
     '<div id="setup">' +
       '<h1>VESTA</h1>' +
@@ -100,7 +110,7 @@ UIInstance.prototype.showGame = function () {
   var self = this
   this.appEl.innerHTML =
     '<div id="game">' +
-      '<div id="left-bar">' +
+      '<div id="status-bar">' +
         '<div id="actions"></div>' +
         '<div id="log"></div>' +
       '</div>' +
@@ -121,6 +131,8 @@ UIInstance.prototype.showGame = function () {
     '<div class="toast-container" id="toasts"></div>'
 
   this.toastContainer = document.getElementById("toasts")
+
+  document.getElementById("foot").classList.add("show-nav")
 
   var canvas = document.getElementById("board")
 
@@ -148,8 +160,10 @@ UIInstance.prototype.showGame = function () {
   setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale())
 
   function setSmoothTarget(cx, cy, scale) {
-    _smoothTarget.cx = cx
-    _smoothTarget.cy = cy
+    var hw = CANVAS_WIDTH / (2 * scale)
+    var hh = CANVAS_HEIGHT / (2 * scale)
+    _smoothTarget.cx = Math.max(CANVAS_CENTER_X - hw, Math.min(CANVAS_CENTER_X + hw, cx))
+    _smoothTarget.cy = Math.max(CANVAS_CENTER_Y - hh, Math.min(CANVAS_CENTER_Y + hh, cy))
     _smoothTarget.scale = scale
     if (!_animFrame) _animFrame = requestAnimationFrame(smoothTick)
   }
@@ -175,10 +189,11 @@ UIInstance.prototype.showGame = function () {
   }
 
   function viewAction(action) {
+    syncSmoothTarget()
     var offset = 30 / view.scale
-    var tcx = _smoothTarget.cx
-    var tcy = _smoothTarget.cy
-    var tsc = _smoothTarget.scale
+    var tcx = view.cx
+    var tcy = view.cy
+    var tsc = view.scale
     switch (action) {
       case "zoom-in": tsc = Math.min(5, tsc * 1.2); break
       case "zoom-out": tsc = Math.max(0.5, tsc * 0.8); break
@@ -186,7 +201,7 @@ UIInstance.prototype.showGame = function () {
       case "pan-down": tcy += offset; break
       case "pan-left": tcx -= offset; break
       case "pan-right": tcx += offset; break
-      case "reset": stopHold(); syncSmoothTarget(); setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale()); return
+      case "reset": stopHold(); setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale()); return
     }
     setSmoothTarget(tcx, tcy, tsc)
   }

@@ -29,8 +29,8 @@ body {
   color: var(--text);
   min-height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
 }
 
@@ -109,7 +109,7 @@ h2 {
   align-items: start;
 }
 
-#left-bar {
+#status-bar {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -360,7 +360,7 @@ h2 {
   z-index: 50;
 }
 
-#foot span {
+#foot .foot-links span {
   color: var(--text-dim);
   margin-right: 4px;
 }
@@ -404,4 +404,65 @@ h2 {
   15% { opacity: 1; transform: translateY(0); }
   70% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ── Footer nav (small screens) ────────────────────── */
+
+.foot-nav {
+  display: none;
+}
+
+.foot-nav button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 12px;
+  border-radius: 4px;
+  line-height: 1;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.foot-nav button:hover {
+  background: var(--border);
+}
+
+@media (max-width: 1000px) {
+  body {
+    align-items: stretch;
+    padding-bottom: 56px;
+  }
+
+  #app {
+    width: 100%;
+  }
+
+  #game {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #board-container {
+    width: 100%;
+  }
+
+  #board-container canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  #status-bar, #panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #foot.show-nav {
+    justify-content: space-between;
+  }
+
+  #foot.show-nav .foot-nav {
+    display: flex;
+    gap: 2px;
+  }
 }

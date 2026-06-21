@@ -224,9 +224,18 @@ function onCanvasClick(e) {
   }
 }
 
+function clampView() {
+  var hw = CANVAS_WIDTH / (2 * view.scale)
+  var hh = CANVAS_HEIGHT / (2 * view.scale)
+  view.cx = Math.max(CANVAS_CENTER_X - hw, Math.min(CANVAS_CENTER_X + hw, view.cx))
+  view.cy = Math.max(CANVAS_CENTER_Y - hh, Math.min(CANVAS_CENTER_Y + hh, view.cy))
+}
+
 function drawBoard() {
   var ctx = _ctx
   if (!ctx) return
+
+  clampView()
 
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
   ctx.fillStyle = getOceanPattern()
