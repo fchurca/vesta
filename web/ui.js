@@ -107,12 +107,12 @@ UIInstance.prototype.showGame = function () {
       '<div id="board-container">' +
         '<canvas id="board"></canvas>' +
         '<div id="view-buttons">' +
-          '<button data-action="zoom-in" style="grid-column:1;grid-row:1">🔍</button>' +
+          '<button data-action="zoom-in" style="grid-column:1;grid-row:1"><span class="btn-layer btn-bot">➕</span><span class="btn-layer btn-top">🔍</span></button>' +
           '<button data-action="pan-up" style="grid-column:2;grid-row:1">⬆</button>' +
           '<button data-action="pan-left" style="grid-column:1;grid-row:2">⬅</button>' +
           '<button data-action="reset" style="grid-column:2;grid-row:2">🏠</button>' +
           '<button data-action="pan-right" style="grid-column:3;grid-row:2">➡</button>' +
-          '<button data-action="zoom-out" style="grid-column:1;grid-row:3">🔎</button>' +
+          '<button data-action="zoom-out" style="grid-column:1;grid-row:3"><span class="btn-layer btn-bot">➖</span><span class="btn-layer btn-top">🔍</span></button>' +
           '<button data-action="pan-down" style="grid-column:2;grid-row:3">⬇</button>' +
         '</div>' +
       '</div>' +
