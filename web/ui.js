@@ -272,6 +272,52 @@ UIInstance.prototype.render = function () {
   drawBoard()
 }
 
+function playerCardHTML(i) {
+  var p = game.players[i]
+  var active = i === game.currentPlayer ? ' active' : ''
+  return (
+    '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
+      '<div class="player-head">' +
+        '<span class="player-name" style="color:' + PLAYER_COLORS[i] + '">' + p.name + '</span>' +
+      '</div>' +
+      '<div class="player-stats">' +
+        '<span>\uD83C\uDF09' + 0 + '</span>' +
+        '<span>\uD83D\uDC82' + 0 + '</span>' +
+        '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
+        '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
+        '<span>\uD83E\uDE99' + p.vp + '</span>' +
+      '</div>' +
+      '<div class="resources-compact">' +
+        compactResource("brick", p.resources.brick) +
+        compactResource("lumber", p.resources.lumber) +
+        compactResource("wool", p.resources.wool) +
+        compactResource("grain", p.resources.grain) +
+        compactResource("ore", p.resources.ore) +
+      '</div>' +
+    '</div>'
+  )
+}
+
+function playerCompactHTML(i) {
+  var p = game.players[i]
+  return (
+    '<div class="player-stats">' +
+      '<span>\uD83C\uDF09' + 0 + '</span>' +
+      '<span>\uD83D\uDC82' + 0 + '</span>' +
+      '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
+      '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
+      '<span>\uD83E\uDE99' + p.vp + '</span>' +
+    '</div>' +
+    '<div class="resources-compact">' +
+      compactResource("brick", p.resources.brick) +
+      compactResource("lumber", p.resources.lumber) +
+      compactResource("wool", p.resources.wool) +
+      compactResource("grain", p.resources.grain) +
+      compactResource("ore", p.resources.ore) +
+    '</div>'
+  )
+}
+
 UIInstance.prototype.renderPanel = function () {
   var panel = document.getElementById("panel")
   if (!panel) return
@@ -279,35 +325,18 @@ UIInstance.prototype.renderPanel = function () {
   var html = ""
 
   for (var i = 0; i < game.players.length; i++) {
-    var p = game.players[i]
-    var active = i === game.currentPlayer ? ' active' : ''
-    html +=
-      '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
-        '<div class="player-head">' +
-          '<span class="player-name" style="color:' + PLAYER_COLORS[i] + '">' + p.name + '</span>' +
-        '</div>' +
-        '<div class="player-stats">' +
-          '<span>\uD83C\uDF09' + 0 + '</span>' +
-          '<span>\uD83D\uDC82' + 0 + '</span>' +
-          '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
-          '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
-          '<span>\uD83E\uDE99' + p.vp + '</span>' +
-        '</div>' +
-        '<div class="resources-compact">' +
-          compactResource("brick", p.resources.brick) +
-          compactResource("lumber", p.resources.lumber) +
-          compactResource("wool", p.resources.wool) +
-          compactResource("grain", p.resources.grain) +
-          compactResource("ore", p.resources.ore) +
-        '</div>' +
-      '</div>'
+    if (i === game.currentPlayer) continue
+    html += playerCardHTML(i)
   }
 
   html += '<div id="log"></div>'
 
   panel.innerHTML = html
+  bindPlayerCards(panel)
+}
 
-  var cards = panel.querySelectorAll(".player-card")
+function bindPlayerCards(container) {
+  var cards = container.querySelectorAll(".player-card")
   for (var ci = 0; ci < cards.length; ci++) {
     ;(function (idx) {
       cards[ci].addEventListener("mouseenter", function () { setHighlightedPlayer(idx) })
@@ -333,7 +362,7 @@ UIInstance.prototype.renderActions = function () {
 
   if (phase === "initial_first" || phase === "initial_second") {
     var initColor = PLAYER_COLORS[game.currentPlayer]
-    html += '<div class="phase-label" style="background:' + initColor + '99;color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + ' — ' + (phase === "initial_first" ? "First" : "Second") + ' settlement</div>'
+    html += '<div class="phase-label" style="background:' + initColor + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + ' — ' + (phase === "initial_first" ? "First" : "Second") + ' settlement</div>'
     if (game.setupStep === "road") {
       html += '<div style="color:var(--text-dim);font-size:0.85rem">Click an edge to place a road</div>'
       setValidPositions("initial-road")
@@ -347,7 +376,9 @@ UIInstance.prototype.renderActions = function () {
 
   if (phase === "play") {
     var turnColor = PLAYER_COLORS[game.currentPlayer]
-    html += '<div class="phase-label" style="background:' + turnColor + '99;color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + '\'s turn</div>'
+    var nextIdx = (game.currentPlayer + 1) % game.players.length
+    var nextColor = PLAYER_COLORS[nextIdx]
+    html += '<div class="phase-label" data-player-idx="' + game.currentPlayer + '" style="background:' + turnColor + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + '\'s turn</div>'
 
     html += '<div class="btn-row btn-row-split">'
     html += '<span class="btn-row-left">'
@@ -358,16 +389,18 @@ UIInstance.prototype.renderActions = function () {
       var total = game.dice[0] + game.dice[1]
       html += '<div id="dice-result">' + f1 + f2 + ' ' + total + (total === 7 ? ' \uD83E\uDD77' : '') + '</div>'
     } else if (!game.rolled) {
-      html += '<button class="btn btn-primary" id="roll-btn" title="Roll dice">🎲🔄🎲</button>'
+      html += '<button class="btn btn-primary" id="roll-btn" title="Roll dice" style="background:' + turnColor + '">🎲🔄🎲</button>'
     }
 
     html += '</span>'
     html += '<span class="btn-row-right">'
-    html += '<button class="btn" id="end-turn-btn" title="End turn"' + (game.rolled ? "" : " disabled") + '>⏭️</button>'
+    html += '<button class="btn" id="end-turn-btn" title="End turn" style="background:' + nextColor + '"' + (game.rolled ? "" : " disabled") + '>⏭️</button>'
     html += '</span>'
     html += '</div>'
 
-    html += '<div class="phase-label" style="margin-top:4px">Build</div>'
+    html += playerCompactHTML(game.currentPlayer)
+
+    html += '<div class="phase-label" style="margin-top:4px">🔨Build</div>'
     html += '<div class="btn-row">'
     html += buildBtn("🌉", BUILDING_COST.road, "build-road", "road", "Build road")
     html += buildBtn("🛖", BUILDING_COST.settlement, "build-settlement", "settlement", "Build settlement")
@@ -397,6 +430,7 @@ UIInstance.prototype.renderActions = function () {
 
   actions.innerHTML = html
 
+  bindPlayerCards(actions)
   this.bindActionButtons()
 }
 
@@ -413,7 +447,7 @@ function buildBtn(emoji, cost, id, mode, title) {
     canPlace = positions.length > 0
   }
 
-  var disabled = (!canAfford || !canPlace)
+  var disabled = (!canAfford || !canPlace || !game.rolled)
 
   var costStr = ""
   for (var r2 in cost) {
@@ -498,6 +532,14 @@ UIInstance.prototype.bindActionButtons = function () {
         if (typeof unhoverTiles === "function") unhoverTiles()
       })
     })(self._lastTotal)
+  }
+
+  var turnLabel = document.querySelector("#actions .phase-label[data-player-idx]")
+  if (turnLabel) {
+    ;(function (idx) {
+      turnLabel.addEventListener("mouseenter", function () { setHighlightedPlayer(idx) })
+      turnLabel.addEventListener("mouseleave", function () { setHighlightedPlayer(null) })
+    })(parseInt(turnLabel.getAttribute("data-player-idx")))
   }
 
   var cancelBtn = document.getElementById("cancel-build-btn")
