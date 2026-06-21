@@ -14,11 +14,15 @@ License: see [LICENSE](./LICENSE) file (BSD 2-Clause).
 
 Relies on [URD](https://github.com/fchurca/urd) for verifiable randomness.
 
+## Work in Progress
+
+- Basic random board generation
+- Settlements, cities, and roads
+
 ## Planned features
 
 - Nostr webclient (nip-XX event types for game actions)
 - Board generation (deterministic, verifiable via URD rolls)
-- Settlements, cities, and roads
 - Dice rolls via URD
 - Trading (direct and bank)
 - Development cards — private draws from shared deck (commutative primitives Soon™)

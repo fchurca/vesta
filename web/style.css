@@ -119,11 +119,44 @@ h2 {
 
 #board-container {
   flex-shrink: 0;
+  position: relative;
 }
 
 #board-container canvas {
   border-radius: 8px;
   cursor: pointer;
+  display: block;
+}
+
+#view-buttons {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  grid-template-columns: 28px 28px 28px;
+  gap: 2px;
+  z-index: 10;
+}
+
+#view-buttons button {
+  width: 28px;
+  height: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+#view-buttons button:hover {
+  background: var(--border);
 }
 
 /* ── Side panel ────────────────────────────────────── */

@@ -74,6 +74,28 @@ UIInstance.prototype.showSetup = function () {
   })
 }
 
+var _homeScale = 0
+function getHomeScale() {
+  if (_homeScale) return _homeScale
+  var maxX = 0, maxY = 0
+  for (var i = 0; i < BOARD_HEXES.length; i++) {
+    var h = BOARD_HEXES[i]
+    var p = hexToPixel(h.q, h.r)
+    var cx = Math.abs(p.x - CANVAS_CENTER_X)
+    var cy = Math.abs(p.y - CANVAS_CENTER_Y)
+    if (cx > maxX) maxX = cx
+    if (cy > maxY) maxY = cy
+  }
+  var extentX = maxX + HEX_SIZE + HEX_SIZE / 2
+  var extentY = maxY + HEX_SIZE + HEX_SIZE / 2
+  _homeScale = Math.min(
+    CANVAS_WIDTH / 2 / extentX,
+    CANVAS_HEIGHT / 2 / extentY,
+    1.5
+  )
+  return _homeScale
+}
+
 UIInstance.prototype.showGame = function () {
   var self = this
   this.appEl.innerHTML =
@@ -82,7 +104,18 @@ UIInstance.prototype.showGame = function () {
         '<div id="actions"></div>' +
         '<div id="log"></div>' +
       '</div>' +
-      '<div id="board-container"><canvas id="board"></canvas></div>' +
+      '<div id="board-container">' +
+        '<canvas id="board"></canvas>' +
+        '<div id="view-buttons">' +
+          '<button data-action="zoom-in" style="grid-column:1;grid-row:1">🔍</button>' +
+          '<button data-action="pan-up" style="grid-column:2;grid-row:1">⬆</button>' +
+          '<button data-action="pan-left" style="grid-column:1;grid-row:2">⬅</button>' +
+          '<button data-action="reset" style="grid-column:2;grid-row:2">🏠</button>' +
+          '<button data-action="pan-right" style="grid-column:3;grid-row:2">➡</button>' +
+          '<button data-action="zoom-out" style="grid-column:1;grid-row:3">🔎</button>' +
+          '<button data-action="pan-down" style="grid-column:2;grid-row:3">⬇</button>' +
+        '</div>' +
+      '</div>' +
       '<div id="panel"></div>' +
     '</div>' +
     '<div class="toast-container" id="toasts"></div>'
@@ -96,13 +129,124 @@ UIInstance.prototype.showGame = function () {
     onEdgeClick: function (edge) { self.onEdgeClick(edge) },
   })
 
-  var escHandler = function (e) {
-    if (e.key === "Escape" && self._buildMode) {
-      self._buildMode = null
-      self.render()
+  var keyMap = {
+    ArrowUp: "pan-up", w: "pan-up", W: "pan-up",
+    ArrowDown: "pan-down", s: "pan-down", S: "pan-down",
+    ArrowLeft: "pan-left", a: "pan-left", A: "pan-left",
+    ArrowRight: "pan-right", d: "pan-right", D: "pan-right",
+    "+": "zoom-in", "=": "zoom-in", PageUp: "zoom-in",
+    "-": "zoom-out", _: "zoom-out", PageDown: "zoom-out",
+    Home: "reset",
+  }
+
+  self._holdInterval = null
+
+  var _smoothTarget = { cx: view.cx, cy: view.cy, scale: view.scale }
+  var _animFrame = null
+  var SMOOTH_FACTOR = 0.25
+
+  setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale())
+
+  function setSmoothTarget(cx, cy, scale) {
+    _smoothTarget.cx = cx
+    _smoothTarget.cy = cy
+    _smoothTarget.scale = scale
+    if (!_animFrame) _animFrame = requestAnimationFrame(smoothTick)
+  }
+
+  function smoothTick() {
+    var dx = _smoothTarget.cx - view.cx
+    var dy = _smoothTarget.cy - view.cy
+    var ds = _smoothTarget.scale - view.scale
+    var dist = Math.sqrt(dx * dx + dy * dy + ds * ds)
+    if (dist < 0.01) {
+      view.cx = _smoothTarget.cx
+      view.cy = _smoothTarget.cy
+      view.scale = _smoothTarget.scale
+      _animFrame = null
+      drawBoard()
+      return
+    }
+    view.cx += dx * SMOOTH_FACTOR
+    view.cy += dy * SMOOTH_FACTOR
+    view.scale += ds * SMOOTH_FACTOR
+    drawBoard()
+    _animFrame = requestAnimationFrame(smoothTick)
+  }
+
+  function viewAction(action) {
+    var offset = 30 / view.scale
+    var tcx = _smoothTarget.cx
+    var tcy = _smoothTarget.cy
+    var tsc = _smoothTarget.scale
+    switch (action) {
+      case "zoom-in": tsc = Math.min(5, tsc * 1.2); break
+      case "zoom-out": tsc = Math.max(0.5, tsc * 0.8); break
+      case "pan-up": tcy -= offset; break
+      case "pan-down": tcy += offset; break
+      case "pan-left": tcx -= offset; break
+      case "pan-right": tcx += offset; break
+      case "reset": stopHold(); syncSmoothTarget(); setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale()); return
+    }
+    setSmoothTarget(tcx, tcy, tsc)
+  }
+
+  function syncSmoothTarget() {
+    _smoothTarget.cx = view.cx
+    _smoothTarget.cy = view.cy
+    _smoothTarget.scale = view.scale
+  }
+
+  function startHold(action) {
+    stopHold()
+    viewAction(action)
+    self._holdInterval = setInterval(function () { viewAction(action) }, 50)
+  }
+
+  function stopHold() {
+    if (self._holdInterval) {
+      clearInterval(self._holdInterval)
+      self._holdInterval = null
     }
   }
-  document.addEventListener("keydown", escHandler)
+
+  document.addEventListener("keydown", function (e) {
+    if (e.repeat) return
+    if (e.key === "Escape") {
+      if (self._buildMode) {
+        self._buildMode = null
+        self.render()
+      }
+      return
+    }
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return
+    var action = keyMap[e.key]
+    if (!action) return
+    e.preventDefault()
+    if (action === "reset") {
+      stopHold()
+      syncSmoothTarget()
+      setSmoothTarget(CANVAS_CENTER_X, CANVAS_CENTER_Y, getHomeScale())
+      return
+    }
+    startHold(action)
+  })
+
+  document.addEventListener("keyup", function (e) {
+    if (keyMap[e.key]) stopHold()
+  })
+
+  var viewBtns = document.getElementById("view-buttons")
+  if (viewBtns) {
+    viewBtns.addEventListener("mousedown", function (e) {
+      var btn = e.target.closest("button")
+      if (!btn) return
+      e.preventDefault()
+      startHold(btn.getAttribute("data-action"))
+    })
+    viewBtns.addEventListener("mouseleave", stopHold)
+  }
+  document.addEventListener("mouseup", stopHold)
 
   this.render()
   this.log("Click a hex corner to place a settlement")
