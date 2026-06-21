@@ -26,7 +26,7 @@ Relies on [URD](https://github.com/fchurca/urd) for verifiable randomness.
 
 ## Links
 
-- 🐙 [GitHub](https://fchurca.github.io/vesta/) [![Deploy to GitHub Pages](https://github.com/fchurca/vesta/actions/workflows/deploy.yml/badge.svg)](https://github.com/fchurca/vesta/actions/workflows/deploy.yml)
+- 🐙 [GitHub](https://github.com/fchurca/vesta) [![Deploy to GitHub Pages](https://github.com/fchurca/vesta/actions/workflows/deploy.yml/badge.svg)](https://github.com/fchurca/vesta/actions/workflows/deploy.yml)
 - 🔮 [Urd](https://fchurca.github.io/urd/)
 - 🏯 [La Crypta Dev](https://www.lacrypta.dev/hackathons/zaps/8ab7e22b-9b17-409a-8519-488c01aa1114)
 - 🌑 [Luna Negra](https://moon21.vercel.app/game/vesta)
