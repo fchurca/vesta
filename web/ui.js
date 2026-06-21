@@ -13,8 +13,7 @@ function UIInstance() {
 UIInstance.prototype.init = function () {
   this.appEl = document.getElementById("app")
 
-  var self = this
-  document.getElementById("foot").addEventListener("click", function (e) {
+  document.getElementById("head").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-section]")
     if (!btn) return
     var el = document.getElementById(btn.getAttribute("data-section"))
@@ -26,10 +25,9 @@ UIInstance.prototype.init = function () {
 
 UIInstance.prototype.showSetup = function () {
   var self = this
-  document.getElementById("foot").classList.remove("show-nav")
+  document.getElementById("head-nav").classList.remove("show")
   this.appEl.innerHTML =
     '<div id="setup">' +
-      '<h1>VESTA</h1>' +
       '<p style="color:var(--text-dim);font-size:0.9rem">Expanding Settlements Through Accord</p>' +
 
       '<label>' +
@@ -108,11 +106,11 @@ function getHomeScale() {
 
 UIInstance.prototype.showGame = function () {
   var self = this
+  document.getElementById("head-nav").classList.add("show")
   this.appEl.innerHTML =
     '<div id="game">' +
-      '<div id="status-bar">' +
+      '<div id="status-bar" class="side-bar">' +
         '<div id="actions"></div>' +
-        '<div id="log"></div>' +
       '</div>' +
       '<div id="board-container">' +
         '<canvas id="board"></canvas>' +
@@ -126,13 +124,13 @@ UIInstance.prototype.showGame = function () {
           '<button data-action="pan-down" style="grid-column:2;grid-row:3">⬇</button>' +
         '</div>' +
       '</div>' +
-      '<div id="panel"></div>' +
+      '<div id="panel" class="side-bar">' +
+        '<div id="log"></div>' +
+      '</div>' +
     '</div>' +
     '<div class="toast-container" id="toasts"></div>'
 
   this.toastContainer = document.getElementById("toasts")
-
-  document.getElementById("foot").classList.add("show-nav")
 
   var canvas = document.getElementById("board")
 
@@ -305,6 +303,8 @@ UIInstance.prototype.renderPanel = function () {
       '</div>'
   }
 
+  html += '<div id="log"></div>'
+
   panel.innerHTML = html
 
   var cards = panel.querySelectorAll(".player-card")
@@ -349,30 +349,30 @@ UIInstance.prototype.renderActions = function () {
     var turnColor = PLAYER_COLORS[game.currentPlayer]
     html += '<div class="phase-label" style="background:' + turnColor + '99;color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + '\'s turn</div>'
 
+    html += '<div class="btn-row btn-row-split">'
+    html += '<span class="btn-row-left">'
+
     if (game.dice) {
       var f1 = String.fromCharCode(0x2680 + game.dice[0] - 1)
       var f2 = String.fromCharCode(0x2680 + game.dice[1] - 1)
       var total = game.dice[0] + game.dice[1]
       html += '<div id="dice-result">' + f1 + f2 + ' ' + total + (total === 7 ? ' \uD83E\uDD77' : '') + '</div>'
+    } else if (!game.rolled) {
+      html += '<button class="btn btn-primary" id="roll-btn" title="Roll dice">🎲🔄🎲</button>'
     }
 
-    html += '<div class="btn-row">'
-
-    if (!game.rolled) {
-      html += '<button class="btn btn-primary" id="roll-btn">Roll dice</button>'
-    }
-
-    html += '<button class="btn" id="end-turn-btn">End turn</button>'
+    html += '</span>'
+    html += '<span class="btn-row-right">'
+    html += '<button class="btn" id="end-turn-btn" title="End turn"' + (game.rolled ? "" : " disabled") + '>⏭️</button>'
+    html += '</span>'
     html += '</div>'
 
-    if (game.rolled) {
-      html += '<div class="phase-label" style="margin-top:4px">Build</div>'
-      html += '<div class="btn-row">'
-      html += buildBtn("Road", BUILDING_COST.road, "build-road", "road")
-      html += buildBtn("Settlement", BUILDING_COST.settlement, "build-settlement", "settlement")
-      html += buildBtn("City", BUILDING_COST.city, "build-city", "city")
-      html += '</div>'
-    }
+    html += '<div class="phase-label" style="margin-top:4px">Build</div>'
+    html += '<div class="btn-row">'
+    html += buildBtn("🌉", BUILDING_COST.road, "build-road", "road", "Build road")
+    html += buildBtn("🛖", BUILDING_COST.settlement, "build-settlement", "settlement", "Build settlement")
+    html += buildBtn("🏰", BUILDING_COST.city, "build-city", "city", "Build city")
+    html += '</div>'
 
     if (this._buildMode) {
       var msgs = {
@@ -400,7 +400,7 @@ UIInstance.prototype.renderActions = function () {
   this.bindActionButtons()
 }
 
-function buildBtn(label, cost, id, mode) {
+function buildBtn(emoji, cost, id, mode, title) {
   var cp2 = game.players[game.currentPlayer]
   var canAfford = true
   for (var r in cost) {
@@ -417,10 +417,10 @@ function buildBtn(label, cost, id, mode) {
 
   var costStr = ""
   for (var r2 in cost) {
-    costStr += RESOURCE_EMOJI[r2] + cost[r2] + " "
+    for (var i = 0; i < cost[r2]; i++) costStr += RESOURCE_EMOJI[r2]
   }
 
-  return '<button class="btn" id="' + id + '"' + (disabled ? " disabled" : "") + ' title="' + costStr.trim() + '">' + label + '</button>'
+  return '<button class="btn" id="' + id + '"' + (disabled ? " disabled" : "") + ' title="' + title + '">' + emoji + '🔨' + costStr + '</button>'
 }
 
 UIInstance.prototype.bindActionButtons = function () {
@@ -430,7 +430,9 @@ UIInstance.prototype.bindActionButtons = function () {
   if (rollBtn) {
     rollBtn.addEventListener("click", function () {
       var result = Game.rollDice()
+      self._lastTotal = result.total
       self.render()
+      if (typeof flashTiles === "function") flashTiles(result.total)
       if (result.gains.length > 0) {
         var msgs = result.gains.map(function (g) {
           return game.players[g.player].name + " +" + g.amount + " " + RESOURCE_EMOJI[g.resource]
@@ -484,6 +486,18 @@ UIInstance.prototype.bindActionButtons = function () {
     newGame.addEventListener("click", function () {
       self.showSetup()
     })
+  }
+
+  var diceResult = document.getElementById("dice-result")
+  if (diceResult && self._lastTotal) {
+    (function (total) {
+      diceResult.addEventListener("mouseenter", function () {
+        if (typeof hoverTiles === "function") hoverTiles(total)
+      })
+      diceResult.addEventListener("mouseleave", function () {
+        if (typeof unhoverTiles === "function") unhoverTiles()
+      })
+    })(self._lastTotal)
   }
 
   var cancelBtn = document.getElementById("cancel-build-btn")

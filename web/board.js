@@ -286,6 +286,19 @@ function drawTile(tile) {
   ctx.lineWidth = 2
   ctx.stroke()
 
+  var intensity = getPulseIntensity()
+  if (intensity > 0 && tile.number === _highlightedNumber) {
+    ctx.beginPath()
+    ctx.moveTo(corners[0].x, corners[0].y)
+    for (var k = 1; k < 6; k++) ctx.lineTo(corners[k].x, corners[k].y)
+    ctx.closePath()
+    ctx.fillStyle = "rgba(255, 255, 200, " + (0.28 * intensity) + ")"
+    ctx.fill()
+    ctx.strokeStyle = "rgba(255, 255, 200, " + (0.7 * intensity) + ")"
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
   ctx.font = "26px serif"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
@@ -358,6 +371,68 @@ function drawRobber() {
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
   ctx.fillText("\uD83E\uDD77", center.x, center.y - 12)
+}
+
+var _highlightedNumber = null
+var _pulseStart = 0
+var _pulseMode = null
+var _pulseFrame = null
+var _hoverPending = false
+
+function flashTiles(number) {
+  _highlightedNumber = number
+  _pulseStart = performance.now()
+  _pulseMode = "flash"
+  _hoverPending = false
+  if (!_pulseFrame) _pulseFrame = requestAnimationFrame(pulseLoop)
+}
+
+function hoverTiles(number) {
+  if (_pulseMode === "flash") {
+    _hoverPending = true
+    return
+  }
+  _highlightedNumber = number
+  _pulseStart = performance.now()
+  _pulseMode = "hover"
+  if (!_pulseFrame) _pulseFrame = requestAnimationFrame(pulseLoop)
+}
+
+function unhoverTiles() {
+  _hoverPending = false
+  if (_pulseMode === "hover") {
+    _highlightedNumber = null
+    _pulseMode = null
+    drawBoard()
+  }
+}
+
+function pulseLoop(time) {
+  if (_pulseMode === "flash") {
+    if (time - _pulseStart >= 1200) {
+      if (_hoverPending) {
+        _hoverPending = false
+        _pulseStart = time
+        _pulseMode = "hover"
+      } else {
+        _highlightedNumber = null
+        _pulseMode = null
+      }
+    }
+  }
+  drawBoard()
+  if (_pulseMode) _pulseFrame = requestAnimationFrame(pulseLoop)
+  else _pulseFrame = null
+}
+
+function getPulseIntensity() {
+  if (!_highlightedNumber || !_pulseMode) return 0
+  var elapsed = performance.now() - _pulseStart
+  if (_pulseMode === "flash") {
+    if (elapsed >= 1200) return 0
+    return Math.sin(Math.PI * elapsed / 1200)
+  }
+  return 0.3 + 0.35 * (1 + Math.sin(2 * Math.PI * elapsed / 2000))
 }
 
 function drawPorts() {
