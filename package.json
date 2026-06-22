@@ -1,6 +1,6 @@
 {
   "name": "vesta",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "VESTA — Expanding Settlements Through Accord",
   "type": "module",
@@ -12,7 +12,7 @@
     "bake": "node web/bake.mjs"
   },
   "dependencies": {
-    "urd": "github:fchurca/urd"
+    "urd": "github:fchurca/urd#semver:^0"
   },
   "devDependencies": {
     "@types/node": "^24",
