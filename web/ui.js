@@ -1,6 +1,8 @@
 function main() {
   UI = new UIInstance()
   UI.init()
+  var verEl = document.getElementById("ver")
+  if (verEl) verEl.textContent = _V
 }
 
 var UI = null

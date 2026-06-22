@@ -442,6 +442,23 @@ h2 {
   font-size: 0.75rem;
 }
 
+.foot-brand {
+  font-family: 'Times New Roman', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.foot-ver {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  text-transform: none;
+}
+
 #foot .foot-links span {
   color: var(--text-dim);
   margin-right: 4px;

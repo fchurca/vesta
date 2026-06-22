@@ -8,10 +8,14 @@ const STYLE = resolve(WEB, "style.css")
 const GAME_JS = resolve(WEB, "game.js")
 const BOARD_JS = resolve(WEB, "board.js")
 const UI_JS = resolve(WEB, "ui.js")
+const PKG = resolve(WEB, "..", "package.json")
 
 if (!existsSync(DIST)) mkdirSync(DIST)
 
+const pkg = JSON.parse(readFileSync(PKG, "utf-8"))
+
 let html = readFileSync(INDEX, "utf-8")
+html = html.replaceAll("{{VER}}", pkg.version)
 
 const css = readFileSync(STYLE, "utf-8")
 html = html.replace('<link rel="stylesheet" href="style.css">', `<style>${css}</style>`)
