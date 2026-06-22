@@ -33,5 +33,5 @@ Relies on [URD](https://github.com/fchurca/urd) for verifiable randomness.
 - 🐙 [GitHub](https://github.com/fchurca/vesta) [![Deploy to GitHub Pages](https://github.com/fchurca/vesta/actions/workflows/deploy.yml/badge.svg)](https://github.com/fchurca/vesta/actions/workflows/deploy.yml)
 - 🔮 [Urd](https://github.com/fchurca/urd)
 - 🏯 [La Crypta Dev](https://www.lacrypta.dev/hackathons/zaps/8ab7e22b-9b17-409a-8519-488c01aa1114)
-- 🌑 [Luna Negra](https://moon21.vercel.app/game/vesta)
+- 🌑 [Luna Negra](https://luna.naranja.fit/game/vesta)
 
