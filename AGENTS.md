@@ -43,3 +43,4 @@ vesta/
 - Before editing, read the file first
 - After making changes, run `npm run check` and `npm test` to verify
 - Keep PRs/commits small and focused
+- When told to upgrade dependencies to their latest LTS, browse online to find current versions — don't rely on internal knowledge
