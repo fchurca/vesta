@@ -9,13 +9,6 @@ export const Resource = {
 
 export type Resource = (typeof Resource)[keyof typeof Resource]
 
-export const BuildingType = {
-  Settlement: "settlement",
-  City: "city",
-} as const
-
-export type BuildingType = (typeof BuildingType)[keyof typeof BuildingType]
-
 export interface HexCoord {
   q: number
   r: number
@@ -27,23 +20,9 @@ export interface Tile {
   number: number
 }
 
-export interface Building {
-  type: BuildingType
-  owner: number
-  vertex: HexCoord
-}
-
 export interface Port {
   resource: Resource | null
   vertices: [HexCoord, HexCoord]
-}
-
-export interface Player {
-  id: number
-  resources: Record<Resource, number>
-  buildings: Building[]
-  roads: [HexCoord, HexCoord][]
-  victoryPoints: number
 }
 
 export interface Board {
@@ -52,11 +31,47 @@ export interface Board {
   robber: HexCoord
 }
 
+export interface RoadData {
+  key: string
+  q1: number
+  r1: number
+  corner1: number
+  q2: number
+  r2: number
+  corner2: number
+}
+
+export interface Player {
+  id: number
+  name: string
+  resources: Record<Resource, number>
+  settlements: { q: number; r: number; corner: number }[]
+  cities: { q: number; r: number; corner: number }[]
+  roads: RoadData[]
+  vp: number
+  roadCount: number
+}
+
+export type GamePhase = "initial_first" | "initial_second" | "play" | "gameover"
+export type SetupStep = "settlement" | "road"
+
 export interface GameState {
-  board: Board
-  players: Player[]
+  phase: GamePhase
   turn: number
   currentPlayer: number
+  dice: [number, number] | null
+  rolled: boolean
+  setupStep: SetupStep
+  pendingSettlement: { q: number; r: number; corner: number } | null
+  board: Board
+  players: Player[]
+  log: string[]
+  winner: number | null
+}
+
+export interface GameOptions {
+  players: number
+  roll: number
 }
 
 export function hexNeighbors(h: HexCoord): HexCoord[] {
@@ -70,11 +85,6 @@ export const BOARD_HEXES: HexCoord[] = [
   { q: 2, r: 0 }, { q: 1, r: 1 }, { q: 0, r: 2 }, { q: -1, r: 2 }, { q: -2, r: 2 },
   { q: -2, r: 1 }, { q: -2, r: 0 }, { q: -1, r: -1 }, { q: 0, r: -2 }, { q: 1, r: -2 }, { q: 2, r: -2 }, { q: 2, r: -1 },
 ]
-
-export interface GameOptions {
-  players: number
-  roll: number
-}
 
 function mulberry32(seed: number): () => number {
   let s = seed | 0
@@ -111,6 +121,12 @@ const NUMBER_DIST: number[] = [
   2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12,
 ]
 
+export const BUILDING_COST: Record<string, Partial<Record<Resource, number>>> = {
+  road: { [Resource.Brick]: 1, [Resource.Lumber]: 1 },
+  settlement: { [Resource.Brick]: 1, [Resource.Lumber]: 1, [Resource.Wool]: 1, [Resource.Grain]: 1 },
+  city: { [Resource.Grain]: 2, [Resource.Ore]: 3 },
+}
+
 const PORT_EDGES: [HexCoord, HexCoord][] = [
   [{ q: 2, r: -2 }, { q: 2, r: -1 }],
   [{ q: 2, r: -1 }, { q: 1, r: 1 }],
@@ -125,6 +141,626 @@ const PORT_EDGES: [HexCoord, HexCoord][] = [
   [{ q: 1, r: -2 }, { q: 2, r: -2 }],
   [{ q: 2, r: -2 }, { q: 2, r: -1 }],
 ]
+
+export const DESERT = Resource.Desert
+
+const HEX_SIZE = 48
+const CANVAS_CENTER_X = 375
+const CANVAS_CENTER_Y = 290
+
+interface Vertex {
+  key: string
+  hexes: { q: number; r: number; corner: number }[]
+}
+
+interface Edge {
+  key: string
+  v1: string
+  v2: string
+  hex: { q: number; r: number; c1: number; c2: number }
+}
+
+let _vertexCache: Record<string, Vertex> | null = null
+let _edgeCache: Record<string, Edge> | null = null
+
+function hexToPixel(q: number, r: number): { x: number; y: number } {
+  const x = HEX_SIZE * (Math.sqrt(3) * q + (Math.sqrt(3) / 2) * r)
+  const y = HEX_SIZE * (3 / 2 * r)
+  return { x: CANVAS_CENTER_X + x, y: CANVAS_CENTER_Y + y }
+}
+
+function hexCornerPixel(q: number, r: number, cornerIndex: number): { x: number; y: number } {
+  const center = hexToPixel(q, r)
+  const angleDeg = 60 * cornerIndex - 30
+  const angleRad = (Math.PI / 180) * angleDeg
+  return {
+    x: center.x + HEX_SIZE * Math.cos(angleRad),
+    y: center.y + HEX_SIZE * Math.sin(angleRad),
+  }
+}
+
+function buildCache(): void {
+  if (_vertexCache) return
+  _vertexCache = {}
+  _edgeCache = {}
+
+  const vByPixel: Record<string, Vertex> = {}
+
+  for (let i = 0; i < BOARD_HEXES.length; i++) {
+    const h = BOARD_HEXES[i]!
+    for (let c = 0; c < 6; c++) {
+      const px = hexCornerPixel(h.q, h.r, c)
+      const key = "v_" + Math.round(px.x * 10) + "_" + Math.round(px.y * 10)
+
+      if (!vByPixel[key]) {
+        vByPixel[key] = { key, hexes: [] }
+      }
+      vByPixel[key]!.hexes.push({ q: h.q, r: h.r, corner: c })
+    }
+  }
+
+  for (const k of Object.keys(vByPixel)) {
+    _vertexCache[k] = vByPixel[k]!
+  }
+
+  const edgeSet: Record<string, Edge> = {}
+
+  for (let j = 0; j < BOARD_HEXES.length; j++) {
+    const h2 = BOARD_HEXES[j]!
+    for (let c2 = 0; c2 < 6; c2++) {
+      const nextC = (c2 + 1) % 6
+      const px1 = hexCornerPixel(h2.q, h2.r, c2)
+      const px2 = hexCornerPixel(h2.q, h2.r, nextC)
+      const vk1 = "v_" + Math.round(px1.x * 10) + "_" + Math.round(px1.y * 10)
+      const vk2 = "v_" + Math.round(px2.x * 10) + "_" + Math.round(px2.y * 10)
+      const eKey = vk1 < vk2 ? "e_" + vk1 + "_" + vk2 : "e_" + vk2 + "_" + vk1
+
+      if (!edgeSet[eKey]) {
+        edgeSet[eKey] = { key: eKey, v1: vk1, v2: vk2, hex: { q: h2.q, r: h2.r, c1: c2, c2: nextC } }
+      }
+    }
+  }
+
+  for (const ek of Object.keys(edgeSet)) {
+    _edgeCache[ek] = edgeSet[ek]!
+  }
+}
+
+function getVertexCache(): Record<string, Vertex> {
+  buildCache()
+  return _vertexCache!
+}
+
+function getEdgeCache(): Record<string, Edge> {
+  buildCache()
+  return _edgeCache!
+}
+
+export function resetCache(): void {
+  _vertexCache = null
+  _edgeCache = null
+}
+
+export function vertexKey(q: number, r: number, corner: number): string {
+  const px = hexCornerPixel(q, r, corner)
+  return "v_" + Math.round(px.x * 10) + "_" + Math.round(px.y * 10)
+}
+
+export function edgeKey(q1: number, r1: number, c1: number, q2: number, r2: number, c2: number): string {
+  const px1 = hexCornerPixel(q1, r1, c1)
+  const px2 = hexCornerPixel(q2, r2, c2)
+  const vk1 = "v_" + Math.round(px1.x * 10) + "_" + Math.round(px1.y * 10)
+  const vk2 = "v_" + Math.round(px2.x * 10) + "_" + Math.round(px2.y * 10)
+  if (vk1 < vk2) return "e_" + vk1 + "_" + vk2
+  return "e_" + vk2 + "_" + vk1
+}
+
+export function verticesAreAdjacent(vKey1: string, vKey2: string): boolean {
+  if (vKey1 === vKey2) return true
+  const edges = getEdgeCache()
+  for (const k of Object.keys(edges)) {
+    const e = edges[k]!
+    if ((e.v1 === vKey1 && e.v2 === vKey2) || (e.v1 === vKey2 && e.v2 === vKey1)) {
+      return true
+    }
+  }
+  return false
+}
+
+export function roadsShareVertex(eKey1: string, eKey2: string): boolean {
+  const edges = getEdgeCache()
+  const e1 = edges[eKey1]
+  const e2 = edges[eKey2]
+  if (!e1 || !e2) return false
+  return e1.v1 === e2.v1 || e1.v1 === e2.v2 || e1.v2 === e2.v1 || e1.v2 === e2.v2
+}
+
+export function edgeTouchesVertex(eKey: string, vKey: string): boolean {
+  const edges = getEdgeCache()
+  const e = edges[eKey]
+  if (!e) return false
+  return e.v1 === vKey || e.v2 === vKey
+}
+
+export function getVertexHexes(q: number, r: number, corner: number): { q: number; r: number; corner: number }[] {
+  const vk = vertexKey(q, r, corner)
+  const v = getVertexCache()[vk]
+  return v ? v.hexes : [{ q, r, corner }]
+}
+
+export function tileAt(state: GameState, q: number, r: number): Tile | null {
+  for (let i = 0; i < state.board.tiles.length; i++) {
+    const t = state.board.tiles[i]!
+    if (t.coord.q === q && t.coord.r === r) return t
+  }
+  return null
+}
+
+export function hasResources(player: Player, cost: Partial<Record<Resource, number>>): boolean {
+  for (const r of Object.keys(cost) as Resource[]) {
+    if ((player.resources[r] ?? 0) < (cost[r] ?? 0)) return false
+  }
+  return true
+}
+
+export function deductResources(player: Player, cost: Partial<Record<Resource, number>>): Player {
+  const newRes = { ...player.resources }
+  for (const r of Object.keys(cost) as Resource[]) {
+    newRes[r] = (newRes[r] ?? 0) - (cost[r] ?? 0)
+  }
+  return { ...player, resources: newRes }
+}
+
+export function findBuilding(state: GameState, vKey: string): { player: number; type: "settlement" | "city" } | null {
+  for (let p = 0; p < state.players.length; p++) {
+    const player = state.players[p]!
+    for (let i = 0; i < player.settlements.length; i++) {
+      const s = player.settlements[i]!
+      if (vertexKey(s.q, s.r, s.corner) === vKey) {
+        return { player: p, type: "settlement" }
+      }
+    }
+    for (let j = 0; j < player.cities.length; j++) {
+      const c = player.cities[j]!
+      if (vertexKey(c.q, c.r, c.corner) === vKey) {
+        return { player: p, type: "city" }
+      }
+    }
+  }
+  return null
+}
+
+export function checkDistanceRule(state: GameState, vKey: string): boolean {
+  for (let p = 0; p < state.players.length; p++) {
+    const player = state.players[p]!
+    for (let i = 0; i < player.settlements.length; i++) {
+      const s = player.settlements[i]!
+      if (verticesAreAdjacent(vKey, vertexKey(s.q, s.r, s.corner))) return false
+    }
+    for (let j = 0; j < player.cities.length; j++) {
+      const c = player.cities[j]!
+      if (verticesAreAdjacent(vKey, vertexKey(c.q, c.r, c.corner))) return false
+    }
+  }
+  return true
+}
+
+export function roadExists(state: GameState, eKey: string): boolean {
+  for (let p = 0; p < state.players.length; p++) {
+    for (let i = 0; i < state.players[p]!.roads.length; i++) {
+      if (state.players[p]!.roads[i]!.key === eKey) return true
+    }
+  }
+  return false
+}
+
+export function hasAdjacentRoad(state: GameState, playerIdx: number, vKey: string): boolean {
+  const player = state.players[playerIdx]!
+  for (let i = 0; i < player.roads.length; i++) {
+    if (edgeTouchesVertex(player.roads[i]!.key, vKey)) return true
+  }
+  return false
+}
+
+export function edgeConnectedToPlayer(state: GameState, playerIdx: number, eKey: string): boolean {
+  const player = state.players[playerIdx]!
+  for (let i = 0; i < player.roads.length; i++) {
+    if (roadsShareVertex(player.roads[i]!.key, eKey)) return true
+  }
+  for (let j = 0; j < player.settlements.length; j++) {
+    const s = player.settlements[j]!
+    if (edgeTouchesVertex(eKey, vertexKey(s.q, s.r, s.corner))) return true
+  }
+  for (let k = 0; k < player.cities.length; k++) {
+    const c = player.cities[k]!
+    if (edgeTouchesVertex(eKey, vertexKey(c.q, c.r, c.corner))) return true
+  }
+  return false
+}
+
+export function canBuildSettlement(
+  state: GameState,
+  playerIdx: number,
+  q: number,
+  r: number,
+  corner: number,
+  isInitial: boolean
+): { ok: boolean; reason?: string } {
+  const vKey = vertexKey(q, r, corner)
+  const existing = findBuilding(state, vKey)
+  if (existing) return { ok: false, reason: "Vertex already occupied" }
+
+  if (!checkDistanceRule(state, vKey)) return { ok: false, reason: "Too close to another settlement" }
+
+  if (!isInitial) {
+    const cost = BUILDING_COST.settlement!
+    if (!hasResources(state.players[playerIdx]!, cost)) return { ok: false, reason: "Not enough resources" }
+
+    if (!hasAdjacentRoad(state, playerIdx, vKey)) return { ok: false, reason: "No adjacent road" }
+  }
+
+  return { ok: true }
+}
+
+export function canBuildRoad(
+  state: GameState,
+  playerIdx: number,
+  q1: number,
+  r1: number,
+  corner1: number,
+  q2: number,
+  r2: number,
+  corner2: number,
+  isInitial: boolean,
+  fromSettlementVertex: { q: number; r: number; corner: number } | null
+): { ok: boolean; reason?: string } {
+  const eKey = edgeKey(q1, r1, corner1, q2, r2, corner2)
+  if (roadExists(state, eKey)) return { ok: false, reason: "Edge already occupied" }
+
+  if (isInitial && fromSettlementVertex) {
+    const svKey = vertexKey(fromSettlementVertex.q, fromSettlementVertex.r, fromSettlementVertex.corner)
+    if (edgeTouchesVertex(eKey, svKey)) return { ok: true }
+    return { ok: false, reason: "Road must connect to placed settlement" }
+  }
+
+  if (!isInitial) {
+    const cost = BUILDING_COST.road!
+    if (!hasResources(state.players[playerIdx]!, cost)) return { ok: false, reason: "Not enough resources" }
+
+    if (!edgeConnectedToPlayer(state, playerIdx, eKey)) {
+      return { ok: false, reason: "No adjacent settlement or road" }
+    }
+  }
+
+  return { ok: true }
+}
+
+export function canBuildCity(
+  state: GameState,
+  playerIdx: number,
+  q: number,
+  r: number,
+  corner: number
+): { ok: boolean; reason?: string } {
+  const player = state.players[playerIdx]!
+  const vKey = vertexKey(q, r, corner)
+
+  let found = false
+  for (let i = 0; i < player.settlements.length; i++) {
+    const s = player.settlements[i]!
+    if (vertexKey(s.q, s.r, s.corner) === vKey) { found = true; break }
+  }
+  if (!found) return { ok: false, reason: "No settlement here" }
+
+  const cost = BUILDING_COST.city!
+  if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }
+
+  return { ok: true }
+}
+
+export function placeSettlement(
+  state: GameState,
+  playerIdx: number,
+  q: number,
+  r: number,
+  corner: number
+): GameState {
+  const newPlayers = state.players.map((p, i) => {
+    if (i !== playerIdx) return p
+    return {
+      ...p,
+      settlements: [...p.settlements, { q, r, corner }],
+      vp: p.vp + 1,
+    }
+  })
+
+  let newState = { ...state, players: newPlayers }
+
+  if (state.phase === "play") {
+    newState = {
+      ...newState,
+      players: newPlayers.map((p, i) =>
+        i === playerIdx ? deductResources(p, BUILDING_COST.settlement!) : p
+      ),
+    }
+  }
+
+  const logMsg = newState.players[playerIdx]!.name + " built a settlement"
+  return { ...newState, log: [...newState.log, logMsg] }
+}
+
+export function placeRoad(
+  state: GameState,
+  playerIdx: number,
+  q1: number,
+  r1: number,
+  corner1: number,
+  q2: number,
+  r2: number,
+  corner2: number
+): GameState {
+  const eKey = edgeKey(q1, r1, corner1, q2, r2, corner2)
+  const road: RoadData = { key: eKey, q1, r1, corner1, q2, r2, corner2 }
+
+  const newPlayers = state.players.map((p, i) => {
+    if (i !== playerIdx) return p
+    return {
+      ...p,
+      roads: [...p.roads, road],
+      roadCount: p.roadCount + 1,
+    }
+  })
+
+  let newState = { ...state, players: newPlayers }
+
+  if (state.phase === "play") {
+    newState = {
+      ...newState,
+      players: newPlayers.map((p, i) =>
+        i === playerIdx ? deductResources(p, BUILDING_COST.road!) : p
+      ),
+    }
+  }
+
+  const logMsg = newState.players[playerIdx]!.name + " built a road"
+  return { ...newState, log: [...newState.log, logMsg] }
+}
+
+export function placeCity(
+  state: GameState,
+  playerIdx: number,
+  q: number,
+  r: number,
+  corner: number
+): GameState {
+  const player = state.players[playerIdx]!
+  const vKey = vertexKey(q, r, corner)
+
+  const newSettlements = player.settlements.filter(s => vertexKey(s.q, s.r, s.corner) !== vKey)
+  const newCities = [...player.cities, { q, r, corner }]
+
+  const newPlayers = state.players.map((p, i) => {
+    if (i !== playerIdx) return p
+    return {
+      ...p,
+      settlements: newSettlements,
+      cities: newCities,
+      vp: p.vp + 1,
+      resources: { ...deductResources(p, BUILDING_COST.city!).resources },
+    }
+  })
+
+  const logMsg = newPlayers[playerIdx]!.name + " built a city"
+  return { ...state, players: newPlayers, log: [...state.log, logMsg] }
+}
+
+export function produce(
+  state: GameState,
+  total: number
+): { player: number; resource: string; amount: number }[] {
+  const gainsByPlayer: Record<number, Record<string, number>> = {}
+  for (let p = 0; p < state.players.length; p++) {
+    gainsByPlayer[p] = {}
+  }
+
+  for (let i = 0; i < state.board.tiles.length; i++) {
+    const tile = state.board.tiles[i]!
+    if (tile.resource === DESERT || tile.number !== total) continue
+
+    for (let c = 0; c < 6; c++) {
+      const vk = vertexKey(tile.coord.q, tile.coord.r, c)
+      const bldg = findBuilding(state, vk)
+      if (bldg) {
+        const amount = bldg.type === "city" ? 2 : 1
+        state.players[bldg.player]!.resources[tile.resource] += amount
+        gainsByPlayer[bldg.player]![tile.resource] = (gainsByPlayer[bldg.player]![tile.resource] ?? 0) + amount
+      }
+    }
+  }
+
+  const gains: { player: number; resource: string; amount: number }[] = []
+  for (let gP = 0; gP < state.players.length; gP++) {
+    for (const gR of Object.keys(gainsByPlayer[gP]!)) {
+      gains.push({ player: gP, resource: gR, amount: gainsByPlayer[gP]![gR]! })
+    }
+  }
+
+  return gains
+}
+
+export function rollDice(state: GameState, rng?: () => number): GameState {
+  const r = rng ?? Math.random
+  const d1 = Math.ceil(r() * 6)
+  const d2 = Math.ceil(r() * 6)
+  const total = d1 + d2
+
+  const newState = {
+    ...state,
+    dice: [d1, d2] as [number, number],
+    rolled: true,
+    log: [...state.log, state.players[state.currentPlayer]!.name + " rolled " + d1 + "+" + d2 + " = " + total],
+  }
+
+  const gains = produce(newState, total)
+
+  if (gains.length > 0) {
+    newState.log.push(
+      "Production: " + gains.map(g =>
+        newState.players[g.player]!.name + " +" + g.amount + " " + g.resource
+      ).join(", ")
+    )
+  } else {
+    newState.log.push("No production")
+  }
+
+  return newState
+}
+
+export function advanceInitialPlacement(state: GameState): GameState {
+  const n = state.players.length
+  let newPhase: GamePhase = state.phase
+  let newPlayer = state.currentPlayer
+  let newTurn = state.turn
+  let logMsg: string | null = null
+
+  if (state.phase === "initial_first") {
+    if (state.currentPlayer < n - 1) {
+      newPlayer = state.currentPlayer + 1
+    } else {
+      newPhase = "initial_second"
+      newPlayer = n - 1
+    }
+  } else {
+    if (state.currentPlayer > 0) {
+      newPlayer = state.currentPlayer - 1
+    } else {
+      newPhase = "play"
+      newPlayer = 0
+      newTurn = 1
+      logMsg = "--- Game begins! ---"
+    }
+  }
+
+  let newLog = [...state.log]
+  if (logMsg) newLog.push(logMsg)
+
+  return {
+    ...state,
+    phase: newPhase,
+    currentPlayer: newPlayer,
+    turn: newTurn,
+    setupStep: "settlement",
+    pendingSettlement: null,
+    log: newLog,
+  }
+}
+
+export function nextTurn(state: GameState): GameState {
+  if (state.phase === "initial_first" || state.phase === "initial_second") {
+    return advanceInitialPlacement(state)
+  }
+
+  const nextPlayer = (state.currentPlayer + 1) % state.players.length
+  const newTurn = state.turn + 1
+  const newLog = [
+    ...state.log,
+    "--- Turn " + newTurn + " ---",
+    state.players[nextPlayer]!.name + "'s turn",
+  ]
+
+  return {
+    ...state,
+    currentPlayer: nextPlayer,
+    rolled: false,
+    dice: null,
+    turn: newTurn,
+    log: newLog,
+  }
+}
+
+export function giveStartingResources(
+  state: GameState,
+  playerIdx: number,
+  q: number,
+  r: number,
+  corner: number
+): GameState {
+  const player = state.players[playerIdx]!
+  const hexes = getVertexHexes(q, r, corner)
+  const newRes = { ...player.resources }
+
+  for (let i = 0; i < hexes.length; i++) {
+    const tile = tileAt(state, hexes[i]!.q, hexes[i]!.r)
+    if (tile && tile.resource !== DESERT) {
+      newRes[tile.resource]++
+    }
+  }
+
+  const newPlayers = state.players.map((p, i) =>
+    i === playerIdx ? { ...p, resources: newRes } : p
+  )
+
+  return { ...state, players: newPlayers }
+}
+
+export function checkWin(state: GameState): number {
+  for (let i = 0; i < state.players.length; i++) {
+    if (state.players[i]!.vp >= 10) return i
+  }
+  return -1
+}
+
+export function getValidPositions(
+  state: GameState,
+  mode: string
+): { type: string; key: string; edge?: Edge }[] {
+  const result: { type: string; key: string; edge?: Edge }[] = []
+  const cp = state.currentPlayer
+  const cache = getVertexCache()
+  const edges = getEdgeCache()
+
+  if (mode === "settlement") {
+    for (const k of Object.keys(cache)) {
+      const v = cache[k]!
+      const h = v.hexes[0]!
+      const r = canBuildSettlement(state, cp, h.q, h.r, h.corner, false)
+      if (r.ok) result.push({ type: "vertex", key: k })
+    }
+  } else if (mode === "city") {
+    const player = state.players[cp]!
+    for (let i = 0; i < player.settlements.length; i++) {
+      const s = player.settlements[i]!
+      result.push({ type: "vertex", key: vertexKey(s.q, s.r, s.corner) })
+    }
+  } else if (mode === "road") {
+    for (const ek of Object.keys(edges)) {
+      const e = edges[ek]!
+      const eh = e.hex
+      const r = canBuildRoad(state, cp, eh.q, eh.r, eh.c1, eh.q, eh.r, eh.c2, false, null)
+      if (r.ok) result.push({ type: "edge", key: ek, edge: e })
+    }
+  } else if (mode === "initial-settlement") {
+    for (const k of Object.keys(cache)) {
+      const v = cache[k]!
+      const h = v.hexes[0]!
+      const r = canBuildSettlement(state, cp, h.q, h.r, h.corner, true)
+      if (r.ok) result.push({ type: "vertex", key: k })
+    }
+  } else if (mode === "initial-road") {
+    if (state.pendingSettlement) {
+      const ps = state.pendingSettlement
+      const svKey = vertexKey(ps.q, ps.r, ps.corner)
+      for (const ek of Object.keys(edges)) {
+        const e = edges[ek]!
+        if (edgeTouchesVertex(ek, svKey)) {
+          result.push({ type: "edge", key: ek, edge: e })
+        }
+      }
+    }
+  }
+
+  return result
+}
 
 export function createGame(opts: GameOptions): GameState {
   const resources = seededShuffle(RESOURCE_DIST, opts.roll)
@@ -151,15 +787,25 @@ export function createGame(opts: GameOptions): GameState {
   })
 
   return {
+    phase: "initial_first",
+    turn: 0,
+    currentPlayer: 0,
+    dice: null,
+    rolled: false,
+    setupStep: "settlement",
+    pendingSettlement: null,
     board: { tiles, ports: PORT_EDGES.map(v => ({ resource: null, vertices: v })), robber },
     players: Array.from({ length: opts.players }, (_, i) => ({
       id: i,
+      name: "Player " + (i + 1),
       resources: zeroRes(),
-      buildings: [],
+      settlements: [],
+      cities: [],
       roads: [],
-      victoryPoints: 0,
+      vp: 0,
+      roadCount: 0,
     })),
-    turn: 1,
-    currentPlayer: 0,
+    log: [],
+    winner: null,
   }
 }
