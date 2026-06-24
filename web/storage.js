@@ -42,7 +42,9 @@ function exportGameRecord() {
   var url = URL.createObjectURL(blob)
   var a = document.createElement("a")
   a.href = url
-  a.download = "vesta-game.json"
+  var slug = titleToSlug(game.title || "untitled")
+  var ts = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14)
+  a.download = slug + "-turn-" + game.turn + "-" + ts + ".json"
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

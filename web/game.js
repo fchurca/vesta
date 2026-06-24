@@ -130,8 +130,9 @@ function createGame(playerCount, seed) {
 }
 
 var Game = {
-  start: function (playerCount, seed) {
+  start: function (playerCount, seed, title) {
     game = createGame(playerCount, seed)
+    game.title = title || ""
     game.phase = "initial_first"
     game.currentPlayer = 0
     game.setupStep = "settlement"
@@ -644,4 +645,34 @@ var GameUtil = {
         break
     }
   },
+}
+
+function truncateText(text, maxBytes, maxGlyphs) {
+  var glyphs = Array.from(text)
+  if (glyphs.length > maxGlyphs) {
+    text = glyphs.slice(0, maxGlyphs).join("")
+  }
+  var encoder = new TextEncoder()
+  var bytes = encoder.encode(text)
+  if (bytes.length <= maxBytes) return text
+  var end = maxBytes
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) {
+    end--
+  }
+  var decoder = new TextDecoder()
+  return decoder.decode(bytes.slice(0, end))
+}
+
+function titleToSlug(title) {
+  var lower = title.toLowerCase()
+  var result = ""
+  for (var i = 0; i < lower.length; i++) {
+    var ch = lower[i]
+    if ((ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9") || ch === "-") {
+      result += ch
+    } else {
+      result += "-"
+    }
+  }
+  return result
 }

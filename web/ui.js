@@ -23,38 +23,6 @@ UIInstance.prototype.init = function () {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
   })
 
-  var saved = loadGame()
-  if (saved) {
-    var overlay = document.createElement("div")
-    overlay.className = "modal-overlay"
-    overlay.innerHTML =
-      '<div class="modal">' +
-        '<h2>Resume game?</h2>' +
-        '<p>A saved game was found.</p>' +
-        '<div class="btn-row" style="display:flex;gap:8px;justify-content:center">' +
-          '<button class="btn btn-primary" id="resume-btn" style="flex:1">Resume</button>' +
-          '<button class="btn" id="discard-btn" style="flex:1">New Game</button>' +
-        '</div>' +
-      '</div>'
-    document.body.appendChild(overlay)
-
-    document.getElementById("resume-btn").addEventListener("click", function () {
-      document.body.removeChild(overlay)
-      game = saved.game
-      game.startRecord = saved.startRecord
-      game.turns = saved.turns
-      game.currentTurnMoves = saved.game.currentTurnMoves || []
-      self.showGame()
-    })
-    document.getElementById("discard-btn").addEventListener("click", function () {
-      document.body.removeChild(overlay)
-      clearGame()
-      self.showSetup()
-    })
-  } else {
-    this.showSetup()
-  }
-
   var gearBtn = document.getElementById("gear-btn")
   var gearDropdown = document.getElementById("gear-dropdown")
 
@@ -69,40 +37,72 @@ UIInstance.prototype.init = function () {
     closeGearDropdown()
   })
 
+  function maybeConfirm(action) {
+    if (game && game.phase) {
+      self.confirmDiscard(function () { action() })
+    } else {
+      action()
+    }
+  }
+
+  document.getElementById("home-btn").addEventListener("click", function () {
+    if (game && game.phase) {
+      self.confirmDiscard(function () { game = null; self.showLanding() })
+    } else {
+      self.showLanding()
+    }
+  })
+
   gearDropdown.addEventListener("click", function (e) {
     var item = e.target.closest("[data-gear]")
-    if (!item) return
+    if (!item || item.disabled) return
     closeGearDropdown()
-    var action = item.getAttribute("data-gear")
-    switch (action) {
+    var itemAction = item.getAttribute("data-gear")
+    switch (itemAction) {
       case "new":
-        game = null
-        clearGame()
-        self.showSetup()
+        maybeConfirm(function () { game = null; clearGame(); self.showLanding() })
         break
       case "load":
-        importGameRecord(function (record) {
-          game = deepClone(record.endState)
-          game.startRecord = record.startState
-          game.turns = record.turns
-          game.currentTurnMoves = []
-          saveGame()
-          self.showGame()
+        maybeConfirm(function () {
+          importGameRecord(function (record) {
+            game = deepClone(record.endState)
+            game.startRecord = record.startState
+            game.turns = record.turns
+            game.currentTurnMoves = []
+            saveGame()
+            self.showGame()
+          })
         })
+        break
+      case "close":
+        self.confirmDiscard(function () { game = null; self.showLanding() })
         break
       case "save":
         exportGameRecord()
         break
     }
   })
+
+  this.showLanding()
 }
 
 UIInstance.prototype.showSetup = function () {
   var self = this
   document.getElementById("head-nav").classList.remove("show")
+  document.querySelector('[data-gear="save"]').style.display = "none"
+  document.querySelector('[data-gear="close"]').style.display = "block"
+  document.getElementById("game-title-head").textContent = ""
+  function pad2(n) { return n < 10 ? "0" + n : "" + n }
+
+  var now = new Date()
+  var defaultTitle = "Game " + now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate()) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes())
+
   this.appEl.innerHTML =
     '<div id="setup">' +
-      '<p style="color:var(--text-dim);font-size:0.9rem">Expanding Settlements Through Accord</p>' +
+      '<label>' +
+        'Game title' +
+        '<input type="text" id="game-title" value="' + defaultTitle + '">' +
+      '</label>' +
 
       '<label>' +
         'Number of players' +
@@ -113,28 +113,57 @@ UIInstance.prototype.showSetup = function () {
         '</select>' +
       '</label>' +
 
-      '<div class="player-name-inputs" id="name-inputs"></div>' +
+      '<div class="player-name-inputs" id="name-inputs">' +
+        '<label style="width:100%">Player names</label>' +
+      '</div>' +
 
       '<button class="btn btn-primary" id="start-btn">Begin</button>' +
     '</div>'
 
+  function toggleOverLimit(input) {
+    var val = input.value
+    var glyphs = Array.from(val).length
+    var bytes = new TextEncoder().encode(val).length
+    if (glyphs > 32 || bytes > 64) {
+      input.classList.add("over-limit")
+    } else {
+      input.classList.remove("over-limit")
+    }
+  }
+
   var countSelect = document.getElementById("player-count")
   var nameDiv = document.getElementById("name-inputs")
+  var titleInput = document.getElementById("game-title")
 
   function updateNames() {
     var count = parseInt(countSelect.value)
+    var label = nameDiv.querySelector("label")
     nameDiv.innerHTML = ""
+    if (label) nameDiv.appendChild(label)
     for (var i = 0; i < count; i++) {
-      var label = document.createElement("label")
-      label.textContent = "Player " + (i + 1) + " name"
+      var row = document.createElement("div")
+      row.className = "name-row"
+      var bubble = document.createElement("span")
+      bubble.className = "color-bubble"
+      bubble.style.background = PLAYER_COLORS[i]
       var input = document.createElement("input")
       input.type = "text"
       input.value = "Player " + (i + 1)
       input.dataset.idx = i
-      label.appendChild(input)
-      nameDiv.appendChild(label)
+      row.appendChild(bubble)
+      row.appendChild(input)
+      nameDiv.appendChild(row)
+      input.addEventListener("input", function () {
+        toggleOverLimit(this)
+      })
+      toggleOverLimit(input)
     }
   }
+
+  titleInput.addEventListener("input", function () {
+    toggleOverLimit(this)
+  })
+  toggleOverLimit(titleInput)
 
   countSelect.addEventListener("change", updateNames)
   updateNames()
@@ -147,13 +176,88 @@ UIInstance.prototype.showSetup = function () {
       names.push(inputs[i].value || "Player " + (i + 1))
     }
 
-    Game.start(count, Date.now())
+    var rawTitle = titleInput.value || defaultTitle
+    Game.start(count, Date.now(), rawTitle)
     for (var j = 0; j < game.players.length; j++) {
-      game.players[j].name = names[j] || "Player " + (j + 1)
+      game.players[j].name = truncateText(names[j] || "Player " + (j + 1), 64, 32)
     }
     Game.captureStartRecord()
 
     self.showGame()
+  })
+}
+
+UIInstance.prototype.showLanding = function () {
+  var self = this
+  document.getElementById("head-nav").classList.remove("show")
+  document.querySelector('[data-gear="save"]').style.display = "none"
+  document.querySelector('[data-gear="close"]').style.display = "none"
+  document.getElementById("game-title-head").textContent = ""
+
+  var saved = loadGame()
+  var restoreHTML = saved
+    ? '<button class="btn btn-primary" id="restore-btn">Restore Game</button>'
+    : ''
+
+  this.appEl.innerHTML =
+    '<div id="landing">' +
+      '<h2>VESTA</h2>' +
+      '<p class="landing-sub">Expanding Settlements Through Accord</p>' +
+      '<div class="landing-buttons">' +
+        restoreHTML +
+        '<button class="btn" id="landing-new">⭐ New Game</button>' +
+        '<button class="btn" id="landing-load">📁 Load Game</button>' +
+      '</div>' +
+    '</div>'
+
+  document.getElementById("landing-new").addEventListener("click", function () {
+    game = null
+    clearGame()
+    self.showSetup()
+  })
+
+  document.getElementById("landing-load").addEventListener("click", function () {
+    importGameRecord(function (record) {
+      game = deepClone(record.endState)
+      game.startRecord = record.startState
+      game.turns = record.turns
+      game.currentTurnMoves = []
+      saveGame()
+      self.showGame()
+    })
+  })
+
+  if (saved) {
+    document.getElementById("restore-btn").addEventListener("click", function () {
+      game = saved.game
+      game.startRecord = saved.startRecord
+      game.turns = saved.turns
+      game.currentTurnMoves = saved.game.currentTurnMoves || []
+      self.showGame()
+    })
+  }
+}
+
+UIInstance.prototype.confirmDiscard = function (onConfirm) {
+  var overlay = document.createElement("div")
+  overlay.className = "modal-overlay"
+  overlay.innerHTML =
+    '<div class="modal">' +
+      '<h2>Discard current game?</h2>' +
+      '<p>Your current game will be lost.</p>' +
+      '<div class="btn-row" style="display:flex;gap:8px;justify-content:center">' +
+        '<button class="btn btn-primary" id="confirm-yes" style="flex:1">Yes, discard</button>' +
+        '<button class="btn" id="confirm-no" style="flex:1">Cancel</button>' +
+      '</div>' +
+    '</div>'
+  document.body.appendChild(overlay)
+
+  document.getElementById("confirm-yes").addEventListener("click", function () {
+    document.body.removeChild(overlay)
+    onConfirm()
+  })
+  document.getElementById("confirm-no").addEventListener("click", function () {
+    document.body.removeChild(overlay)
   })
 }
 
@@ -182,6 +286,9 @@ function getHomeScale() {
 UIInstance.prototype.showGame = function () {
   var self = this
   document.getElementById("head-nav").classList.add("show")
+  document.querySelector('[data-gear="save"]').style.display = "block"
+  document.querySelector('[data-gear="close"]').style.display = "block"
+  document.getElementById("game-title-head").textContent = game.title || ""
   this.appEl.innerHTML =
     '<div id="game">' +
       '<div id="status-bar" class="side-bar">' +
@@ -497,8 +604,7 @@ UIInstance.prototype.renderActions = function () {
   }
 
   if (phase === "gameover") {
-    var winner = game._winner
-    html += '<div class="phase-label">' + game.players[winner].name + ' wins!</div>'
+    html += '<div class="phase-label">' + game.players[game.winner].name + ' wins!</div>'
     html += '<button class="btn btn-primary" id="new-game-btn">New game</button>'
   }
 
@@ -592,7 +698,7 @@ UIInstance.prototype.bindActionButtons = function () {
   var newGame = document.getElementById("new-game-btn")
   if (newGame) {
     newGame.addEventListener("click", function () {
-      self.showSetup()
+      self.showLanding()
     })
   }
 
@@ -704,7 +810,7 @@ UIInstance.prototype.onEdgeClick = function (edge) {
         if (wasPhase === "initial_second" && game.phase !== "initial_second") {
           var winner = Game.checkWin()
           if (winner >= 0) {
-            game._winner = winner
+            game.winner = winner
             game.phase = "gameover"
             this.render()
             this.showToast(game.players[winner].name + " wins!")
@@ -811,7 +917,7 @@ UIInstance.prototype.showToast = function (msg) {
 UIInstance.prototype.checkWin = function () {
   var winner = Game.checkWin()
   if (winner >= 0) {
-    game._winner = winner
+    game.winner = winner
     game.phase = "gameover"
     this.render()
     this.showToast(game.players[winner].name + " wins with " + game.players[winner].vp + " VP!")

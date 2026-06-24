@@ -54,6 +54,16 @@ h1 {
   text-transform: uppercase;
 }
 
+#home-btn {
+  cursor: pointer;
+  user-select: none;
+}
+
+#home-btn:hover {
+  color: var(--accent-hover);
+  text-shadow: 0 0 6px rgba(200,102,28,0.4);
+}
+
 h2 {
   font-size: 1.1rem;
   color: var(--accent);
@@ -101,6 +111,29 @@ h2 {
   flex-direction: column;
   gap: 8px;
   width: 100%;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.name-row input {
+  flex: 1;
+}
+
+.color-bubble {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+#setup input.over-limit {
+  border-color: #e53e3e;
+  border-width: 2px;
 }
 
 /* ── Game layout ───────────────────────────────────── */
@@ -345,6 +378,48 @@ h2 {
   border-bottom: none;
 }
 
+/* ── Landing ────────────────────────────────────────── */
+
+#landing {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 48px 32px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 320px;
+}
+
+#landing h2 {
+  font-family: 'Times New Roman', serif;
+  font-size: 1.8rem;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.landing-sub {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.landing-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.landing-buttons .btn {
+  padding: 10px 16px;
+  font-size: 1rem;
+  width: 100%;
+}
+
 .gear-wrap {
   position: relative;
   margin-left: auto;
@@ -455,6 +530,15 @@ h2 {
 
 #head h1 {
   font-size: 1.1rem;
+}
+
+#game-title-head {
+  font-size: 1rem;
+  color: var(--text-dim);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .head-nav {

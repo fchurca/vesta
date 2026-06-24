@@ -33,6 +33,8 @@ import {
   applyMove,
   replayRecord,
   deriveLog,
+  truncateText,
+  titleToSlug,
 } from "./vesta.ts"
 
 import type { GameMove, GameTurn, GameRecord } from "./vesta.ts"
@@ -898,5 +900,51 @@ describe("deriveLog", () => {
     const record: GameRecord = { startState: makeState(), turns: [turn], endState: firstPlayer0 }
     const log = deriveLog(record)
     ok(log.some(m => m === "--- Game begins! ---"))
+  })
+})
+
+describe("truncateText", () => {
+  it("keeps short ascii under limits", () => {
+    equal(truncateText("hello", 64, 32), "hello")
+  })
+
+  it("truncates by glyphs when limit is smaller", () => {
+    equal(truncateText("abcdefghij", 64, 5), "abcde")
+  })
+
+  it("truncates by bytes when limit is smaller", () => {
+    equal(truncateText("abcde", 3, 32), "abc")
+  })
+
+  it("removes incomplete multi-byte glyph at byte boundary", () => {
+    const result = truncateText("a\u00e9bc", 2, 32)
+    equal(result, "a")
+  })
+
+  it("truncates 4-byte glyph cleanly", () => {
+    const result = truncateText("a\ud83d\ude00bc", 4, 32)
+    equal(result, "a")
+  })
+
+  it("handles empty string", () => {
+    equal(truncateText("", 64, 32), "")
+  })
+})
+
+describe("titleToSlug", () => {
+  it("lowers case", () => {
+    equal(titleToSlug("My Game"), "my-game")
+  })
+
+  it("replaces non-[a-z0-9-] with -", () => {
+    equal(titleToSlug("hello world!"), "hello-world-")
+  })
+
+  it("keeps valid characters", () => {
+    equal(titleToSlug("abc-123"), "abc-123")
+  })
+
+  it("handles empty string", () => {
+    equal(titleToSlug(""), "")
   })
 })

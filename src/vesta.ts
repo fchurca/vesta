@@ -66,6 +66,7 @@ export interface GameState {
   board: Board
   players: Player[]
   winner: number | null
+  title: string
 }
 
 export type GameMove =
@@ -91,6 +92,39 @@ export interface GameRecord {
 export interface GameOptions {
   players: number
   roll: number
+  title?: string
+}
+
+export function truncateText(text: string, maxBytes: number, maxGlyphs: number): string {
+  const glyphs = [...text]
+  if (glyphs.length > maxGlyphs) {
+    text = glyphs.slice(0, maxGlyphs).join("")
+  }
+  const encoder = new TextEncoder()
+  const bytes = encoder.encode(text)
+  if (bytes.length <= maxBytes) return text
+  let end = maxBytes
+  while (end > 0) {
+    const b = bytes[end]
+    if (b === undefined || (b & 0xc0) !== 0x80) break
+    end--
+  }
+  const decoder = new TextDecoder()
+  return decoder.decode(bytes.slice(0, end))
+}
+
+export function titleToSlug(title: string): string {
+  const lower = title.toLowerCase()
+  let result = ""
+  for (let i = 0; i < lower.length; i++) {
+    const ch = lower[i]!
+    if ((ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9") || ch === "-") {
+      result += ch
+    } else {
+      result += "-"
+    }
+  }
+  return result
 }
 
 export function hexNeighbors(h: HexCoord): HexCoord[] {
@@ -798,7 +832,7 @@ export function createGame(opts: GameOptions): GameState {
     board: { tiles, ports: PORT_EDGES.map(v => ({ resource: null, vertices: v })), robber },
     players: Array.from({ length: opts.players }, (_, i) => ({
       id: i,
-      name: "Player " + (i + 1),
+      name: truncateText("Player " + (i + 1), 64, 32),
       resources: zeroRes(),
       settlements: [],
       cities: [],
@@ -807,6 +841,7 @@ export function createGame(opts: GameOptions): GameState {
       roadCount: 0,
     })),
     winner: null,
+    title: truncateText(opts.title ?? "", 64, 32),
   }
 }
 
