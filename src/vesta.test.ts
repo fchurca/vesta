@@ -30,7 +30,12 @@ import {
   resetCache,
   Resource,
   DESERT,
+  applyMove,
+  replayRecord,
+  deriveLog,
 } from "./vesta.ts"
+
+import type { GameMove, GameTurn, GameRecord } from "./vesta.ts"
 
 const makeState = () => createGame({ players: 4, roll: 42 })
 
@@ -453,11 +458,6 @@ describe("placeSettlement", () => {
     }
   })
 
-  it("adds to log", () => {
-    let g = makeState()
-    g = placeSettlement(g, 0, 0, 0, 0)
-    ok(g.log.some(msg => msg.includes("built a settlement")))
-  })
 })
 
 describe("placeRoad", () => {
@@ -478,11 +478,6 @@ describe("placeRoad", () => {
     equal(g.players[0]!.resources[Resource.Lumber], 0)
   })
 
-  it("adds to log", () => {
-    let g = makeState()
-    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
-    ok(g.log.some(msg => msg.includes("built a road")))
-  })
 })
 
 describe("placeCity", () => {
@@ -497,14 +492,6 @@ describe("placeCity", () => {
     equal(g.players[0]!.vp, 2)
   })
 
-  it("adds to log", () => {
-    let g = makeState()
-    g = placeSettlement(g, 0, 0, 0, 0)
-    g.players[0]!.resources[Resource.Grain] = 2
-    g.players[0]!.resources[Resource.Ore] = 3
-    g = placeCity(g, 0, 0, 0, 0)
-    ok(g.log.some(msg => msg.includes("built a city")))
-  })
 })
 
 describe("produce", () => {
@@ -571,12 +558,6 @@ describe("rollDice", () => {
     equal(result.dice!.length, 2)
   })
 
-  it("adds roll to log", () => {
-    const g = makeState()
-    const rng = () => 0.5
-    const result = rollDice(g, rng)
-    ok(result.log.some(msg => msg.includes("rolled")))
-  })
 })
 
 describe("advanceInitialPlacement", () => {
@@ -722,5 +703,200 @@ describe("resetCache", () => {
     const b = vertexKey(0, 0, 0)
     equal(a, b)
     resetCache()
+  })
+})
+
+describe("applyMove", () => {
+  it("roll-dice sets dice and rolled flag", () => {
+    const g = makeState()
+    const next = applyMove(g, { type: "roll-dice", player: 0, dice: [3, 4] })
+    equal(next.dice![0], 3)
+    equal(next.dice![1], 4)
+    ok(next.rolled)
+  })
+
+  it("roll-dice produces resources for matching buildings", () => {
+    let g = makeState()
+    const tile = g.board.tiles.find(t => t.number === 6 && t.resource !== DESERT)
+    if (!tile) return
+    g = placeSettlement(g, 0, tile.coord.q, tile.coord.r, 0)
+    const next = applyMove(g, { type: "roll-dice", player: 0, dice: [3, 3] })
+    ok(next.players[0]!.resources[tile.resource] >= 1)
+  })
+
+  it("place-settlement adds settlement", () => {
+    const g = makeState()
+    const next = applyMove(g, { type: "place-settlement", player: 0, q: 0, r: 0, corner: 0 })
+    equal(next.players[0]!.settlements.length, 1)
+  })
+
+  it("place-road adds road", () => {
+    const g = makeState()
+    const next = applyMove(g, { type: "place-road", player: 0, q1: 0, r1: 0, corner1: 0, q2: 0, r2: 0, corner2: 1 })
+    equal(next.players[0]!.roads.length, 1)
+  })
+
+  it("place-city upgrades settlement to city", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g.players[0]!.resources[Resource.Grain] = 2
+    g.players[0]!.resources[Resource.Ore] = 3
+    const next = applyMove(g, { type: "place-city", player: 0, q: 0, r: 0, corner: 0 })
+    equal(next.players[0]!.cities.length, 1)
+    equal(next.players[0]!.settlements.length, 0)
+  })
+
+  it("end-turn advances to next player", () => {
+    const g = makeState()
+    const next = applyMove(g, { type: "end-turn", player: 0 })
+    equal(next.currentPlayer, 1)
+  })
+})
+
+describe("replayRecord", () => {
+  it("rebuilds endState from startState and turns", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = nextTurn(g)
+    const turn1: GameTurn = {
+      turn: 0, player: 0, phase: "initial_first",
+      moves: [
+        { type: "place-settlement", player: 0, q: 0, r: 0, corner: 0 },
+        { type: "end-turn", player: 0 },
+      ],
+    }
+    const turn2: GameTurn = {
+      turn: 0, player: 1, phase: "initial_first",
+      moves: [{ type: "end-turn", player: 1 }],
+    }
+    const record: GameRecord = { startState: makeState(), turns: [turn1, turn2], endState: g }
+    const rebuilt = replayRecord(record)
+    equal(rebuilt.players[0]!.settlements.length, 1)
+    equal(rebuilt.players[0]!.vp, 1)
+    equal(rebuilt.currentPlayer, 2)
+  })
+
+  it("handles multiple moves in one turn", () => {
+    let g = makeState()
+    g = { ...g, phase: "play", turn: 1 }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [
+        { type: "place-settlement", player: 0, q: 0, r: 0, corner: 0 },
+        { type: "place-road", player: 0, q1: 0, r1: 0, corner1: 0, q2: 0, r2: 0, corner2: 1 },
+      ],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const rebuilt = replayRecord(record)
+    equal(rebuilt.players[0]!.settlements.length, 1)
+    equal(rebuilt.players[0]!.roads.length, 1)
+  })
+
+  it("does not mutate startState", () => {
+    const g = makeState()
+    const record: GameRecord = { startState: g, turns: [], endState: g }
+    const rebuilt = replayRecord(record)
+    equal(rebuilt.players[0]!.settlements.length, 0)
+  })
+
+  it("empty turns returns startState unchanged", () => {
+    const g = makeState()
+    const record: GameRecord = { startState: g, turns: [], endState: g }
+    const rebuilt = replayRecord(record)
+    equal(rebuilt.players.length, 4)
+    equal(rebuilt.turn, 0)
+  })
+})
+
+describe("deriveLog", () => {
+  it("returns empty array for empty turns", () => {
+    const g = makeState()
+    const record: GameRecord = { startState: g, turns: [], endState: g }
+    equal(deriveLog(record).length, 0)
+  })
+
+  it("includes roll message for roll-dice move", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "roll-dice", player: 0, dice: [3, 4] }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("rolled")))
+    ok(log.some(m => m.includes("3+4")))
+  })
+
+  it("includes settlement message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 0, player: 0, phase: "initial_first",
+      moves: [{ type: "place-settlement", player: 0, q: 0, r: 0, corner: 0 }],
+    }
+    const record: GameRecord = { startState: makeState(), turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("built a settlement")))
+  })
+
+  it("includes road message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 0, player: 0, phase: "initial_first",
+      moves: [{ type: "place-road", player: 0, q1: 0, r1: 0, corner1: 0, q2: 0, r2: 0, corner2: 1 }],
+    }
+    const record: GameRecord = { startState: makeState(), turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("built a road")))
+  })
+
+  it("includes city message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "place-city", player: 0, q: 0, r: 0, corner: 0 }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("built a city")))
+  })
+
+  it("includes --- Turn N --- header in play phase", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "roll-dice", player: 0, dice: [1, 2] }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.startsWith("--- Turn")))
+  })
+
+  it("includes --- Game begins! --- after last end-turn of setup", () => {
+    let g = makeState()
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    g = advanceInitialPlacement(g)
+    const firstPlayer0 = advanceInitialPlacement(g)
+    const turn: GameTurn = {
+      turn: 0, player: 0, phase: "initial_second",
+      moves: [{ type: "end-turn", player: 0 }],
+    }
+    const record: GameRecord = { startState: makeState(), turns: [turn], endState: firstPlayer0 }
+    const log = deriveLog(record)
+    ok(log.some(m => m === "--- Game begins! ---"))
   })
 })

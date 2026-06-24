@@ -13,6 +13,7 @@ function UIInstance() {
 }
 
 UIInstance.prototype.init = function () {
+  var self = this
   this.appEl = document.getElementById("app")
 
   document.getElementById("head").addEventListener("click", function (e) {
@@ -22,7 +23,78 @@ UIInstance.prototype.init = function () {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
   })
 
-  this.showSetup()
+  var saved = loadGame()
+  if (saved) {
+    var overlay = document.createElement("div")
+    overlay.className = "modal-overlay"
+    overlay.innerHTML =
+      '<div class="modal">' +
+        '<h2>Resume game?</h2>' +
+        '<p>A saved game was found.</p>' +
+        '<div class="btn-row" style="display:flex;gap:8px;justify-content:center">' +
+          '<button class="btn btn-primary" id="resume-btn" style="flex:1">Resume</button>' +
+          '<button class="btn" id="discard-btn" style="flex:1">New Game</button>' +
+        '</div>' +
+      '</div>'
+    document.body.appendChild(overlay)
+
+    document.getElementById("resume-btn").addEventListener("click", function () {
+      document.body.removeChild(overlay)
+      game = saved.game
+      game.startRecord = saved.startRecord
+      game.turns = saved.turns
+      game.currentTurnMoves = saved.game.currentTurnMoves || []
+      self.showGame()
+    })
+    document.getElementById("discard-btn").addEventListener("click", function () {
+      document.body.removeChild(overlay)
+      clearGame()
+      self.showSetup()
+    })
+  } else {
+    this.showSetup()
+  }
+
+  var gearBtn = document.getElementById("gear-btn")
+  var gearDropdown = document.getElementById("gear-dropdown")
+
+  function closeGearDropdown() { gearDropdown.style.display = "none" }
+
+  gearBtn.addEventListener("click", function (e) {
+    e.stopPropagation()
+    gearDropdown.style.display = gearDropdown.style.display === "none" ? "block" : "none"
+  })
+
+  document.addEventListener("click", function () {
+    closeGearDropdown()
+  })
+
+  gearDropdown.addEventListener("click", function (e) {
+    var item = e.target.closest("[data-gear]")
+    if (!item) return
+    closeGearDropdown()
+    var action = item.getAttribute("data-gear")
+    switch (action) {
+      case "new":
+        game = null
+        clearGame()
+        self.showSetup()
+        break
+      case "load":
+        importGameRecord(function (record) {
+          game = deepClone(record.endState)
+          game.startRecord = record.startState
+          game.turns = record.turns
+          game.currentTurnMoves = []
+          saveGame()
+          self.showGame()
+        })
+        break
+      case "save":
+        exportGameRecord()
+        break
+    }
+  })
 }
 
 UIInstance.prototype.showSetup = function () {
@@ -79,6 +151,7 @@ UIInstance.prototype.showSetup = function () {
     for (var j = 0; j < game.players.length; j++) {
       game.players[j].name = names[j] || "Player " + (j + 1)
     }
+    Game.captureStartRecord()
 
     self.showGame()
   })
@@ -264,7 +337,6 @@ UIInstance.prototype.showGame = function () {
   document.addEventListener("mouseup", stopHold)
 
   this.render()
-  this.log("Click a hex corner to place a settlement")
 }
 
 UIInstance.prototype.render = function () {
@@ -551,6 +623,7 @@ UIInstance.prototype.bindActionButtons = function () {
       self.render()
     })
   }
+
 }
 
 UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
@@ -564,6 +637,7 @@ UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
         Game.placeSettlement(cp, q, r, corner)
         game.pendingSettlement = { q: q, r: r, corner: corner }
         game.setupStep = "road"
+        saveGame()
         this.render()
         this.showToast(game.players[cp].name + " placed settlement. Now place a road.")
       } else {
@@ -619,6 +693,7 @@ UIInstance.prototype.onEdgeClick = function (edge) {
 
         if (game.phase === "initial_second") {
           Game.giveStartingResources(cp, ps.q, ps.r, ps.corner)
+          saveGame()
         }
 
         game.pendingSettlement = null
@@ -664,18 +739,59 @@ UIInstance.prototype.renderLog = function () {
   var logEl = document.getElementById("log")
   if (!logEl) return
 
+  var names = {}
+  for (var i = 0; i < game.players.length; i++) {
+    names[i] = game.players[i].name
+  }
+
+  var lines = []
+
+  for (var t = 0; t < game.turns.length; t++) {
+    var turn = game.turns[t]
+    if (turn.phase === "play") {
+      lines.push("--- Turn " + turn.turn + " ---")
+      lines.push(names[turn.player] + "'s turn")
+    }
+    for (var m = 0; m < turn.moves.length; m++) {
+      GameUtil.deriveLogLine(lines, turn.moves[m], names)
+    }
+    if (turn.phase !== "play" && turn.moves.length > 0) {
+      var lastMove = turn.moves[turn.moves.length - 1]
+      if (lastMove.type === "end-turn" && t === game.turns.length - 1 && game.phase === "play") {
+        lines.push("--- Game begins! ---")
+      }
+    }
+  }
+
+  if (game.currentTurnMoves && game.currentTurnMoves.length > 0) {
+    if (game.turns.length === 0 || game.phase === "play") {
+      if (game.phase === "play") {
+        var hasHeader = false
+        for (var x = 0; x < lines.length; x++) {
+          if (lines[x] === "--- Turn " + game.turn + " ---") { hasHeader = true; break }
+        }
+        if (!hasHeader) {
+          lines.push("--- Turn " + game.turn + " ---")
+          lines.push(names[game.currentPlayer] + "'s turn")
+        }
+      }
+    }
+    for (var n = 0; n < game.currentTurnMoves.length; n++) {
+      GameUtil.deriveLogLine(lines, game.currentTurnMoves[n], names)
+    }
+  }
+
   logEl.innerHTML = ""
-  for (var i = 0; i < game.log.length; i++) {
+  for (var i = 0; i < lines.length; i++) {
     var div = document.createElement("div")
-    div.textContent = game.log[i]
+    div.textContent = lines[i]
     logEl.appendChild(div)
   }
 
   logEl.scrollTop = logEl.scrollHeight
 }
 
-UIInstance.prototype.log = function (msg) {
-  Game.log(msg)
+UIInstance.prototype.log = function () {
   this.renderLog()
 }
 

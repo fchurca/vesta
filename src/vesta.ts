@@ -65,8 +65,27 @@ export interface GameState {
   pendingSettlement: { q: number; r: number; corner: number } | null
   board: Board
   players: Player[]
-  log: string[]
   winner: number | null
+}
+
+export type GameMove =
+  | { type: "roll-dice"; player: number; dice: [number, number] }
+  | { type: "place-settlement"; player: number; q: number; r: number; corner: number }
+  | { type: "place-road"; player: number; q1: number; r1: number; corner1: number; q2: number; r2: number; corner2: number }
+  | { type: "place-city"; player: number; q: number; r: number; corner: number }
+  | { type: "end-turn"; player: number }
+
+export interface GameTurn {
+  turn: number
+  player: number
+  phase: GamePhase
+  moves: GameMove[]
+}
+
+export interface GameRecord {
+  startState: GameState
+  turns: GameTurn[]
+  endState: GameState | null
 }
 
 export interface GameOptions {
@@ -485,8 +504,7 @@ export function placeSettlement(
     }
   }
 
-  const logMsg = newState.players[playerIdx]!.name + " built a settlement"
-  return { ...newState, log: [...newState.log, logMsg] }
+  return newState
 }
 
 export function placeRoad(
@@ -522,8 +540,7 @@ export function placeRoad(
     }
   }
 
-  const logMsg = newState.players[playerIdx]!.name + " built a road"
-  return { ...newState, log: [...newState.log, logMsg] }
+  return newState
 }
 
 export function placeCity(
@@ -550,8 +567,7 @@ export function placeCity(
     }
   })
 
-  const logMsg = newPlayers[playerIdx]!.name + " built a city"
-  return { ...state, players: newPlayers, log: [...state.log, logMsg] }
+  return { ...state, players: newPlayers }
 }
 
 export function produce(
@@ -605,25 +621,11 @@ export function rollDice(state: GameState, rng?: () => number): GameState {
     return { ...p, resources: newRes }
   })
 
-  const newLog = [...state.log]
-  newLog.push(state.players[state.currentPlayer]!.name + " rolled " + d1 + "+" + d2 + " = " + total)
-
-  if (gains.length > 0) {
-    newLog.push(
-      "Production: " + gains.map(g =>
-        state.players[g.player]!.name + " +" + g.amount + " " + g.resource
-      ).join(", ")
-    )
-  } else {
-    newLog.push("No production")
-  }
-
   return {
     ...state,
     dice: [d1, d2] as [number, number],
     rolled: true,
     players: newPlayers,
-    log: newLog,
   }
 }
 
@@ -632,7 +634,6 @@ export function advanceInitialPlacement(state: GameState): GameState {
   let newPhase: GamePhase = state.phase
   let newPlayer = state.currentPlayer
   let newTurn = state.turn
-  let logMsg: string | null = null
 
   if (state.phase === "initial_first") {
     if (state.currentPlayer < n - 1) {
@@ -648,12 +649,8 @@ export function advanceInitialPlacement(state: GameState): GameState {
       newPhase = "play"
       newPlayer = 0
       newTurn = 1
-      logMsg = "--- Game begins! ---"
     }
   }
-
-  let newLog = [...state.log]
-  if (logMsg) newLog.push(logMsg)
 
   return {
     ...state,
@@ -662,7 +659,6 @@ export function advanceInitialPlacement(state: GameState): GameState {
     turn: newTurn,
     setupStep: "settlement",
     pendingSettlement: null,
-    log: newLog,
   }
 }
 
@@ -673,11 +669,6 @@ export function nextTurn(state: GameState): GameState {
 
   const nextPlayer = (state.currentPlayer + 1) % state.players.length
   const newTurn = state.turn + 1
-  const newLog = [
-    ...state.log,
-    "--- Turn " + newTurn + " ---",
-    state.players[nextPlayer]!.name + "'s turn",
-  ]
 
   return {
     ...state,
@@ -685,7 +676,6 @@ export function nextTurn(state: GameState): GameState {
     rolled: false,
     dice: null,
     turn: newTurn,
-    log: newLog,
   }
 }
 
@@ -816,7 +806,91 @@ export function createGame(opts: GameOptions): GameState {
       vp: 0,
       roadCount: 0,
     })),
-    log: [],
     winner: null,
   }
+}
+
+export function applyMove(state: GameState, move: GameMove): GameState {
+  switch (move.type) {
+    case "roll-dice": {
+      const total = move.dice[0] + move.dice[1]
+      const gains = produce(state, total)
+      const newPlayers = state.players.map((p, i) => {
+        const playerGains = gains.filter(g => g.player === i)
+        if (playerGains.length === 0) return p
+        const newRes = { ...p.resources }
+        for (const g of playerGains) {
+          newRes[g.resource as Resource] = (newRes[g.resource as Resource] ?? 0) + g.amount
+        }
+        return { ...p, resources: newRes }
+      })
+      return {
+        ...state,
+        dice: move.dice,
+        rolled: true,
+        players: newPlayers,
+      }
+    }
+    case "place-settlement":
+      return placeSettlement(state, move.player, move.q, move.r, move.corner)
+    case "place-road":
+      return placeRoad(state, move.player, move.q1, move.r1, move.corner1, move.q2, move.r2, move.corner2)
+    case "place-city":
+      return placeCity(state, move.player, move.q, move.r, move.corner)
+    case "end-turn":
+      return nextTurn(state)
+  }
+}
+
+export function replayRecord(record: GameRecord): GameState {
+  let state = record.startState
+  for (const turn of record.turns) {
+    for (const move of turn.moves) {
+      state = applyMove(state, move)
+    }
+  }
+  return state
+}
+
+export function deriveLog(record: GameRecord): string[] {
+  const out: string[] = []
+  const names = record.startState.players.map(p => p.name)
+
+  if (record.turns.length === 0) return out
+
+  for (const turn of record.turns) {
+    if (turn.phase === "play") {
+      out.push("--- Turn " + turn.turn + " ---")
+      out.push(names[turn.player] + "'s turn")
+    }
+
+    for (const move of turn.moves) {
+      switch (move.type) {
+        case "roll-dice": {
+          const total = move.dice[0] + move.dice[1]
+          out.push(names[move.player] + " rolled " + move.dice[0] + "+" + move.dice[1] + " = " + total)
+          break
+        }
+        case "place-settlement":
+          out.push(names[move.player] + " built a settlement")
+          break
+        case "place-road":
+          out.push(names[move.player] + " built a road")
+          break
+        case "place-city":
+          out.push(names[move.player] + " built a city")
+          break
+        case "end-turn":
+          if ((turn.phase === "initial_first" || turn.phase === "initial_second") &&
+              record.endState?.phase === "play" &&
+              turn === record.turns[record.turns.length - 1] &&
+              turn.moves.indexOf(move) === turn.moves.length - 1) {
+            out.push("--- Game begins! ---")
+          }
+          break
+      }
+    }
+  }
+
+  return out
 }

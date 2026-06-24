@@ -15,6 +15,14 @@
     <button data-section="board-container">🗺️</button>
     <button data-section="panel">👥</button>
   </nav>
+  <div class="gear-wrap" id="gear-wrap">
+    <button id="gear-btn">⚙️</button>
+    <div class="gear-dropdown" id="gear-dropdown" style="display:none">
+      <button data-gear="new">⭐ New</button>
+      <button data-gear="load">📁 Load</button>
+      <button data-gear="save">💾 Save</button>
+    </div>
+  </div>
 </header>
 <div id="app"></div>
 <footer id="foot">
@@ -28,6 +36,7 @@
 </footer>
 <script src="game.js"></script>
 <script src="board.js"></script>
+<script src="storage.js"></script>
 <script src="ui.js"></script>
 <script>main()</script>
 </body>

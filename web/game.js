@@ -126,7 +126,6 @@ function createGame(playerCount, seed) {
     pendingSettlement: null,
     board: { tiles: tiles, robber: robber },
     players: players,
-    log: [],
   }
 }
 
@@ -137,14 +136,15 @@ var Game = {
     game.currentPlayer = 0
     game.setupStep = "settlement"
     game.pendingSettlement = null
-    game.log = []
-    Game.log("Game started with " + playerCount + " players")
-    Game.log(game.players[0].name + " places first settlement")
+    game.turns = []
+    game.currentTurnMoves = []
   },
 
-  log: function (msg) {
-    game.log.push(msg)
+  captureStartRecord: function () {
+    game.startRecord = JSON.parse(JSON.stringify(game))
   },
+
+  log: function () {},
 
   currentPlayer: function () {
     return game.players[game.currentPlayer]
@@ -156,8 +156,9 @@ var Game = {
     game.dice = [d1, d2]
     game.rolled = true
     var total = d1 + d2
-    Game.log(Game.currentPlayer().name + " rolled " + d1 + "+" + d2 + " = " + total)
+    game.currentTurnMoves.push({ type: "roll-dice", player: game.currentPlayer, dice: [d1, d2] })
     var gains = Game.produce(total)
+    saveGame()
     return { dice: [d1, d2], total: total, gains: gains }
   },
 
@@ -188,14 +189,6 @@ var Game = {
       for (var gR in gainsByPlayer[gP]) {
         gains.push({ player: gP, resource: gR, amount: gainsByPlayer[gP][gR] })
       }
-    }
-
-    if (gains.length > 0) {
-      Game.log("Production: " + gains.map(function (g) {
-        return game.players[g.player].name + " +" + g.amount + " " + RESOURCE_EMOJI[g.resource]
-      }).join(", "))
-    } else {
-      Game.log("No production")
     }
 
     return gains
@@ -316,7 +309,8 @@ var Game = {
       Game.deductResources(player, BUILDING_COST.settlement)
     }
 
-    Game.log(player.name + " built a settlement")
+    game.currentTurnMoves.push({ type: "place-settlement", player: playerIdx, q: q, r: r, corner: corner })
+    saveGame()
   },
 
   placeRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2) {
@@ -333,7 +327,8 @@ var Game = {
       Game.deductResources(player, BUILDING_COST.road)
     }
 
-    Game.log(player.name + " built a road")
+    game.currentTurnMoves.push({ type: "place-road", player: playerIdx, q1: q1, r1: r1, corner1: corner1, q2: q2, r2: r2, corner2: corner2 })
+    saveGame()
   },
 
   placeCity: function (playerIdx, q, r, corner) {
@@ -350,7 +345,8 @@ var Game = {
     player.cities.push({ q: q, r: r, corner: corner, type: "city" })
     player.vp += 1
     Game.deductResources(player, BUILDING_COST.city)
-    Game.log(player.name + " built a city")
+    game.currentTurnMoves.push({ type: "place-city", player: playerIdx, q: q, r: r, corner: corner })
+    saveGame()
   },
 
   findBuilding: function (vKey) {
@@ -397,6 +393,11 @@ var Game = {
   },
 
   nextTurn: function () {
+    game.currentTurnMoves.push({ type: "end-turn", player: game.currentPlayer })
+    var prevPhase = game.phase
+    var prevPlayer = game.currentPlayer
+    var prevTurn = game.turn
+
     if (game.phase === "initial_first" || game.phase === "initial_second") {
       Game.advanceInitialPlacement()
     } else {
@@ -404,9 +405,18 @@ var Game = {
       game.rolled = false
       game.dice = null
       game.turn++
-      Game.log("--- Turn " + game.turn + " ---")
-      Game.log(game.players[game.currentPlayer].name + "'s turn")
     }
+
+    if (game.currentTurnMoves.length > 0) {
+      game.turns.push({
+        turn: prevTurn,
+        player: prevPlayer,
+        phase: prevPhase,
+        moves: game.currentTurnMoves,
+      })
+      game.currentTurnMoves = []
+    }
+    saveGame()
   },
 
   advanceInitialPlacement: function () {
@@ -427,8 +437,6 @@ var Game = {
         game.currentPlayer = 0
         game.turn = 1
         game.rolled = false
-        Game.log("--- Game begins! ---")
-        Game.log(game.players[0].name + "'s turn")
       }
     }
 
@@ -619,4 +627,21 @@ var GameUtil = {
   hexCornerPixel: hexCornerPixel,
   hexToPixel: hexToPixel,
   buildVertexEdgeCache: buildVertexEdgeCache,
+
+  deriveLogLine: function (lines, move, names) {
+    switch (move.type) {
+      case "roll-dice":
+        lines.push(names[move.player] + " rolled " + move.dice[0] + "+" + move.dice[1] + " = " + (move.dice[0] + move.dice[1]))
+        break
+      case "place-settlement":
+        lines.push(names[move.player] + " built a settlement")
+        break
+      case "place-road":
+        lines.push(names[move.player] + " built a road")
+        break
+      case "place-city":
+        lines.push(names[move.player] + " built a city")
+        break
+    }
+  },
 }

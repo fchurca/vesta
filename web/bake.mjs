@@ -7,6 +7,7 @@ const INDEX = resolve(WEB, "index.html")
 const STYLE = resolve(WEB, "style.css")
 const GAME_JS = resolve(WEB, "game.js")
 const BOARD_JS = resolve(WEB, "board.js")
+const STORAGE_JS = resolve(WEB, "storage.js")
 const UI_JS = resolve(WEB, "ui.js")
 const PKG = resolve(WEB, "..", "package.json")
 
@@ -27,6 +28,7 @@ const replaceScript = (src, filePath) => {
 
 replaceScript("game.js", GAME_JS)
 replaceScript("board.js", BOARD_JS)
+replaceScript("storage.js", STORAGE_JS)
 replaceScript("ui.js", UI_JS)
 
 const outPath = resolve(DIST, "index.html")

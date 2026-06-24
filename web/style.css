@@ -345,6 +345,64 @@ h2 {
   border-bottom: none;
 }
 
+.gear-wrap {
+  position: relative;
+  margin-left: auto;
+}
+
+#gear-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 12px;
+  border-radius: 4px;
+  line-height: 1;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+#gear-btn:hover {
+  background: var(--border);
+}
+
+.gear-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 200;
+  min-width: 120px;
+}
+
+.gear-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.gear-dropdown button:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.gear-dropdown button:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.gear-dropdown button:hover {
+  background: var(--border);
+}
+
 /* ── Modal overlay ─────────────────────────────────── */
 
 .modal-overlay {
