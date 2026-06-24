@@ -572,7 +572,6 @@ export function produce(
       const bldg = findBuilding(state, vk)
       if (bldg) {
         const amount = bldg.type === "city" ? 2 : 1
-        state.players[bldg.player]!.resources[tile.resource] += amount
         gainsByPlayer[bldg.player]![tile.resource] = (gainsByPlayer[bldg.player]![tile.resource] ?? 0) + amount
       }
     }
@@ -594,26 +593,38 @@ export function rollDice(state: GameState, rng?: () => number): GameState {
   const d2 = Math.ceil(r() * 6)
   const total = d1 + d2
 
-  const newState = {
-    ...state,
-    dice: [d1, d2] as [number, number],
-    rolled: true,
-    log: [...state.log, state.players[state.currentPlayer]!.name + " rolled " + d1 + "+" + d2 + " = " + total],
-  }
+  const gains = produce(state, total)
 
-  const gains = produce(newState, total)
+  const newPlayers = state.players.map((p, i) => {
+    const playerGains = gains.filter(g => g.player === i)
+    if (playerGains.length === 0) return p
+    const newRes = { ...p.resources }
+    for (const g of playerGains) {
+      newRes[g.resource as Resource] = (newRes[g.resource as Resource] ?? 0) + g.amount
+    }
+    return { ...p, resources: newRes }
+  })
+
+  const newLog = [...state.log]
+  newLog.push(state.players[state.currentPlayer]!.name + " rolled " + d1 + "+" + d2 + " = " + total)
 
   if (gains.length > 0) {
-    newState.log.push(
+    newLog.push(
       "Production: " + gains.map(g =>
-        newState.players[g.player]!.name + " +" + g.amount + " " + g.resource
+        state.players[g.player]!.name + " +" + g.amount + " " + g.resource
       ).join(", ")
     )
   } else {
-    newState.log.push("No production")
+    newLog.push("No production")
   }
 
-  return newState
+  return {
+    ...state,
+    dice: [d1, d2] as [number, number],
+    rolled: true,
+    players: newPlayers,
+    log: newLog,
+  }
 }
 
 export function advanceInitialPlacement(state: GameState): GameState {

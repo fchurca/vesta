@@ -525,7 +525,6 @@ describe("produce", () => {
 
     ok(gains.length > 0)
     ok(gains.some(gg => gg.player === 0 && gg.resource === tileRes && gg.amount === 1))
-    equal(g.players[0]!.resources[tileRes], 1)
   })
 
   it("gives 2 resources per city on matching number", () => {
@@ -545,21 +544,13 @@ describe("produce", () => {
     }
   })
 
-  it("gains 0 resources in play phase before first settlement", () => {
+  it("produce does not mutate original state", () => {
     let g = makeState()
-    g = { ...g, phase: "play" }
-    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
-    g.players[0]!.resources[Resource.Brick] = 1
-    g.players[0]!.resources[Resource.Lumber] = 1
-    g.players[0]!.resources[Resource.Wool] = 1
-    g.players[0]!.resources[Resource.Grain] = 1
-    g = placeSettlement(g, 0, 0, 0, 2)
-
-    const tile = tileAt(g, 0, 0)
-    if (tile) {
-      const gains = produce(g, tile.number)
-      ok(gains.length >= 0)
-    }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    const before = g.players[0]!.resources[Resource.Brick]
+    produce(g, 6)
+    const after = g.players[0]!.resources[Resource.Brick]
+    equal(before, after)
   })
 
   it("does not produce from desert tile", () => {
