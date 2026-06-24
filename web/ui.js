@@ -101,7 +101,7 @@ UIInstance.prototype.showSetup = function () {
     '<div id="setup">' +
       '<label>' +
         'Game title' +
-        '<input type="text" id="game-title" value="' + defaultTitle + '">' +
+        '<input type="text" id="game-title" placeholder="' + defaultTitle + '">' +
       '</label>' +
 
       '<label>' +
@@ -134,9 +134,21 @@ UIInstance.prototype.showSetup = function () {
   var countSelect = document.getElementById("player-count")
   var nameDiv = document.getElementById("name-inputs")
   var titleInput = document.getElementById("game-title")
+  var playerColors = PLAYER_COLORS.slice()
 
   function updateNames() {
     var count = parseInt(countSelect.value)
+    while (playerColors.length < count) {
+      var used = {}
+      for (var ci = 0; ci < playerColors.length; ci++) used[playerColors[ci]] = true
+      for (var ci = 0; ci < PLAYER_COLORS.length; ci++) {
+        if (!used[PLAYER_COLORS[ci]]) {
+          playerColors.push(PLAYER_COLORS[ci])
+          break
+        }
+      }
+    }
+    playerColors.length = count
     var label = nameDiv.querySelector("label")
     nameDiv.innerHTML = ""
     if (label) nameDiv.appendChild(label)
@@ -145,7 +157,7 @@ UIInstance.prototype.showSetup = function () {
       row.className = "name-row"
       var bubble = document.createElement("span")
       bubble.className = "color-bubble"
-      bubble.style.background = PLAYER_COLORS[i]
+      bubble.style.background = playerColors[i]
       var input = document.createElement("input")
       input.type = "text"
       input.value = "Player " + (i + 1)
@@ -156,6 +168,35 @@ UIInstance.prototype.showSetup = function () {
       input.addEventListener("input", function () {
         toggleOverLimit(this)
       })
+      ;(function (input, defaultValue) {
+        input.addEventListener("focus", function () {
+          if (input.value === defaultValue) input.value = ""
+        })
+        input.addEventListener("blur", function () {
+          if (input.value === "") input.value = defaultValue
+          toggleOverLimit(input)
+        })
+      })(input, "Player " + (i + 1))
+      ;(function (bubble, idx) {
+        bubble.addEventListener("click", function () {
+          var currentColor = playerColors[idx]
+          var currentIdx = PLAYER_COLORS.indexOf(currentColor)
+          var nextIdx = (currentIdx + 1) % PLAYER_COLORS.length
+          while (nextIdx !== currentIdx) {
+            var taken = false
+            for (var j = 0; j < playerColors.length; j++) {
+              if (j !== idx && playerColors[j] === PLAYER_COLORS[nextIdx]) {
+                taken = true
+                break
+              }
+            }
+            if (!taken) break
+            nextIdx = (nextIdx + 1) % PLAYER_COLORS.length
+          }
+          playerColors[idx] = PLAYER_COLORS[nextIdx]
+          bubble.style.background = PLAYER_COLORS[nextIdx]
+        })
+      })(bubble, i)
       toggleOverLimit(input)
     }
   }
@@ -180,6 +221,7 @@ UIInstance.prototype.showSetup = function () {
     Game.start(count, Date.now(), rawTitle)
     for (var j = 0; j < game.players.length; j++) {
       game.players[j].name = truncateText(names[j] || "Player " + (j + 1), 64, 32)
+      game.players[j].color = playerColors[j]
     }
     Game.captureStartRecord()
 
@@ -459,7 +501,7 @@ function playerCardHTML(i) {
   return (
     '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
       '<div class="player-head">' +
-        '<span class="player-name" style="color:' + PLAYER_COLORS[i] + '">' + p.name + '</span>' +
+        '<span class="player-name" style="color:' + p.color + '">' + p.name + '</span>' +
       '</div>' +
       '<div class="player-stats">' +
         '<span>\uD83C\uDF09' + 0 + '</span>' +
@@ -542,7 +584,7 @@ UIInstance.prototype.renderActions = function () {
   var html = ''
 
   if (phase === "initial_first" || phase === "initial_second") {
-    var initColor = PLAYER_COLORS[game.currentPlayer]
+    var initColor = cp.color
     html += '<div class="phase-label" style="background:' + initColor + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + ' — ' + (phase === "initial_first" ? "First" : "Second") + ' settlement</div>'
     if (game.setupStep === "road") {
       html += '<div style="color:var(--text-dim);font-size:0.85rem">Click an edge to place a road</div>'
@@ -556,9 +598,9 @@ UIInstance.prototype.renderActions = function () {
   }
 
   if (phase === "play") {
-    var turnColor = PLAYER_COLORS[game.currentPlayer]
+    var turnColor = cp.color
     var nextIdx = (game.currentPlayer + 1) % game.players.length
-    var nextColor = PLAYER_COLORS[nextIdx]
+    var nextColor = game.players[nextIdx].color
     html += '<div class="phase-label" data-player-idx="' + game.currentPlayer + '" style="background:' + turnColor + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + cp.name + '\'s turn</div>'
 
     html += '<div class="btn-row btn-row-split">'

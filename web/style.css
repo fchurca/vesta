@@ -129,6 +129,7 @@ h2 {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 #setup input.over-limit {

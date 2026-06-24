@@ -441,7 +441,7 @@ function drawPorts() {
 function drawAllBuildings() {
   for (var p = 0; p < game.players.length; p++) {
     var player = game.players[p]
-    var color = PLAYER_COLORS[p]
+    var color = player.color
 
     for (var i = 0; i < player.settlements.length; i++) {
       var s = player.settlements[i]
@@ -523,7 +523,7 @@ function drawRoadHighlight(p1, p2) {
 function drawAllRoads() {
   for (var p = 0; p < game.players.length; p++) {
     var player = game.players[p]
-    var color = PLAYER_COLORS[p]
+    var color = player.color
 
     for (var i = 0; i < player.roads.length; i++) {
       var r = player.roads[i]

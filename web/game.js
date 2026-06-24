@@ -107,6 +107,7 @@ function createGame(playerCount, seed) {
     players.push({
       id: i,
       name: "Player " + (i + 1),
+      color: PLAYER_COLORS[i],
       resources: { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 },
       settlements: [],
       cities: [],
