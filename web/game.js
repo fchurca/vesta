@@ -108,6 +108,7 @@ function createGame(playerCount, seed) {
       id: i,
       name: "Player " + (i + 1),
       color: PLAYER_COLORS[i],
+      rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
       resources: { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 },
       settlements: [],
       cities: [],
@@ -348,6 +349,24 @@ var Game = {
     player.vp += 1
     Game.deductResources(player, BUILDING_COST.city)
     game.currentTurnMoves.push({ type: "place-city", player: playerIdx, q: q, r: r, corner: corner })
+    saveGame()
+  },
+
+  doTrade: function (give, take, partner) {
+    var player = game.players[game.currentPlayer]
+    for (var r in give) {
+      if (give[r]) player.resources[r] -= give[r]
+    }
+    for (var r in take) {
+      if (take[r]) player.resources[r] += take[r]
+    }
+    game.currentTurnMoves.push({
+      type: "trade",
+      player: game.currentPlayer,
+      partner: partner || "bank",
+      give: give,
+      take: take,
+    })
     saveGame()
   },
 

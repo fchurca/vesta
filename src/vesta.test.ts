@@ -227,6 +227,7 @@ describe("hasResources", () => {
     roads: [],
     vp: 0,
     roadCount: 0,
+    rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
   })
 
   it("returns true when player has enough resources", () => {
@@ -253,6 +254,7 @@ describe("deductResources", () => {
       roads: [],
       vp: 0,
       roadCount: 0,
+      rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
     }
     const result = deductResources(p, { [Resource.Brick]: 1, [Resource.Lumber]: 2 })
     equal(result.resources[Resource.Brick], 4)
@@ -269,6 +271,7 @@ describe("deductResources", () => {
       roads: [],
       vp: 0,
       roadCount: 0,
+      rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
     }
     deductResources(p, { [Resource.Brick]: 1 })
     equal(p.resources[Resource.Brick], 5)
@@ -753,6 +756,25 @@ describe("applyMove", () => {
     const next = applyMove(g, { type: "end-turn", player: 0 })
     equal(next.currentPlayer, 1)
   })
+
+  it("trade deducts give and adds take resources", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    const next = applyMove(g, { type: "trade", player: 0, partner: "bank", give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 }, take: { brick: 0, lumber: 1, wool: 0, grain: 0, ore: 0 } })
+    equal(next.players[0]!.resources[Resource.Brick], 1)
+    equal(next.players[0]!.resources[Resource.Lumber], 1)
+  })
+
+  it("trade throws on insufficient resources", () => {
+    const g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 2
+    try {
+      applyMove(g, { type: "trade", player: 0, partner: "bank", give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 }, take: { brick: 0, lumber: 1, wool: 0, grain: 0, ore: 0 } })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("Not enough resources"))
+    }
+  })
 })
 
 describe("replayRecord", () => {
@@ -900,6 +922,20 @@ describe("deriveLog", () => {
     const record: GameRecord = { startState: makeState(), turns: [turn], endState: firstPlayer0 }
     const log = deriveLog(record)
     ok(log.some(m => m === "--- Game begins! ---"))
+  })
+
+  it("includes trade message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "trade", player: 0, partner: "bank", give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 }, take: { brick: 0, lumber: 1, wool: 0, grain: 0, ore: 0 } }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("traded")))
+    ok(log.some(m => m.includes("bank")))
   })
 })
 

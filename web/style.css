@@ -510,6 +510,88 @@ h2 {
   font-size: 1.1rem;
 }
 
+/* ── Trade modal ──────────────────────────────────── */
+
+.trade-modal {
+  min-width: 420px;
+  padding: 24px 32px;
+}
+
+.trade-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--accent);
+}
+
+.trade-columns {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.trade-col {
+  flex: 1;
+}
+
+.trade-col-title {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.trade-selection {
+  min-height: 36px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.trade-chip {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.trade-chip:hover {
+  background: var(--border);
+}
+
+.trade-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.trade-pool-item {
+  cursor: pointer;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.trade-pool-item:hover {
+  background: var(--border);
+}
+
+.trade-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 /* ── Header ─────────────────────────────────────────── */
 
 #head {

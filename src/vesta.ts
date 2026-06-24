@@ -9,6 +9,15 @@ export const Resource = {
 
 export type Resource = (typeof Resource)[keyof typeof Resource]
 
+export const TradeResource = {
+  Brick: "brick",
+  Lumber: "lumber",
+  Wool: "wool",
+  Grain: "grain",
+  Ore: "ore",
+} as const
+export type TradeResource = (typeof TradeResource)[keyof typeof TradeResource]
+
 export interface HexCoord {
   q: number
   r: number
@@ -50,6 +59,7 @@ export interface Player {
   roads: RoadData[]
   vp: number
   roadCount: number
+  rates: Record<TradeResource, number>
 }
 
 export type GamePhase = "initial_first" | "initial_second" | "play" | "gameover"
@@ -75,6 +85,7 @@ export type GameMove =
   | { type: "place-road"; player: number; q1: number; r1: number; corner1: number; q2: number; r2: number; corner2: number }
   | { type: "place-city"; player: number; q: number; r: number; corner: number }
   | { type: "end-turn"; player: number }
+  | { type: "trade"; player: number; partner: "bank" | number; give: Record<TradeResource, number>; take: Record<TradeResource, number> }
 
 export interface GameTurn {
   turn: number
@@ -839,6 +850,7 @@ export function createGame(opts: GameOptions): GameState {
       roads: [],
       vp: 0,
       roadCount: 0,
+      rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
     })),
     winner: null,
     title: truncateText(opts.title ?? "", 64, 32),
@@ -874,6 +886,28 @@ export function applyMove(state: GameState, move: GameMove): GameState {
       return placeCity(state, move.player, move.q, move.r, move.corner)
     case "end-turn":
       return nextTurn(state)
+    case "trade": {
+      const player = state.players[move.player]!
+      for (const r in move.give) {
+        const res = r as TradeResource
+        if ((player.resources[res] ?? 0) < (move.give[res] ?? 0)) {
+          throw new Error("Not enough resources to trade")
+        }
+      }
+      const newRes = { ...player.resources }
+      for (const r in move.give) {
+        const res = r as TradeResource
+        newRes[res] = (newRes[res] ?? 0) - (move.give[res] ?? 0)
+      }
+      for (const r in move.take) {
+        const res = r as TradeResource
+        newRes[res] = (newRes[res] ?? 0) + (move.take[res] ?? 0)
+      }
+      const newPlayers = state.players.map((p, i) =>
+        i === move.player ? { ...p, resources: newRes } : p
+      )
+      return { ...state, players: newPlayers }
+    }
   }
 }
 
@@ -923,6 +957,13 @@ export function deriveLog(record: GameRecord): string[] {
             out.push("--- Game begins! ---")
           }
           break
+        case "trade": {
+          const partnerStr = move.partner === "bank" ? "bank" : names[move.partner]
+          const giveStr = Object.entries(move.give).filter(([,c]) => c > 0).map(([r,c]) => c + " " + r).join(", ")
+          const takeStr = Object.entries(move.take).filter(([,c]) => c > 0).map(([r,c]) => c + " " + r).join(", ")
+          out.push(names[move.player] + " traded " + giveStr + " with " + partnerStr + " for " + takeStr)
+          break
+        }
       }
     }
   }

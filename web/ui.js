@@ -69,6 +69,7 @@ UIInstance.prototype.init = function () {
             game.startRecord = record.startState
             game.turns = record.turns
             game.currentTurnMoves = []
+            backfillPlayerRates()
             saveGame()
             self.showGame()
           })
@@ -264,6 +265,7 @@ UIInstance.prototype.showLanding = function () {
       game.startRecord = record.startState
       game.turns = record.turns
       game.currentTurnMoves = []
+      backfillPlayerRates()
       saveGame()
       self.showGame()
     })
@@ -275,8 +277,17 @@ UIInstance.prototype.showLanding = function () {
       game.startRecord = saved.startRecord
       game.turns = saved.turns
       game.currentTurnMoves = saved.game.currentTurnMoves || []
+      backfillPlayerRates()
       self.showGame()
     })
+  }
+}
+
+function backfillPlayerRates() {
+  for (var p = 0; p < game.players.length; p++) {
+    if (!game.players[p].rates) {
+      game.players[p].rates = { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 }
+    }
   }
 }
 
@@ -301,6 +312,153 @@ UIInstance.prototype.confirmDiscard = function (onConfirm) {
   document.getElementById("confirm-no").addEventListener("click", function () {
     document.body.removeChild(overlay)
   })
+}
+UIInstance.prototype.openTradePopup = function () {
+  var self = this
+  var cp = game.players[game.currentPlayer]
+  var tradeMode = "bank"
+  var give = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+  var take = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+  var RESOURCE_KEYS = ["brick", "lumber", "wool", "grain", "ore"]
+
+  function giveStep(res) { return tradeMode === "bank" ? cp.rates[res] : 1 }
+  function takeStep() { return 1 }
+
+  function canAddGive(res) {
+    if (take[res] > 0) return false
+    return (cp.resources[res] || 0) - give[res] >= giveStep(res)
+  }
+
+  function canAddTake(res) {
+    if (give[res] > 0) return false
+    return true
+  }
+
+  function validate() {
+    var anyOverlap = false
+    var giveRes = null
+    var giveCount = 0
+    var takeRes = null
+    var takeCount = 0
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      if (give[r] > 0) { giveCount++; giveRes = r }
+      if (take[r] > 0) { takeCount++; takeRes = r }
+      if (give[r] > 0 && take[r] > 0) anyOverlap = true
+    }
+
+    if (anyOverlap) return false
+
+    if (tradeMode === "bank") {
+      if (giveCount !== 1 || takeCount !== 1) return false
+      if (giveRes === takeRes) return false
+      if (give[giveRes] !== cp.rates[giveRes]) return false
+      if (take[takeRes] !== 1) return false
+      if ((cp.resources[giveRes] || 0) < give[giveRes]) return false
+      return true
+    }
+
+    return giveCount > 0 && takeCount > 0
+  }
+
+  function chipsHTML(obj, action) {
+    var html = ""
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      for (var c = 0; c < obj[r]; c++) {
+        html += '<span class="trade-chip" data-trade-action="' + action + '" data-trade-res="' + r + '">' + RESOURCE_EMOJI[r] + '</span>'
+      }
+    }
+    if (!html) html = '<span style="color:var(--text-dim);font-size:0.85rem">\u2014</span>'
+    return html
+  }
+
+  function poolHTML(keys, action, stepFn, canAdd) {
+    var html = ""
+    for (var i = 0; i < keys.length; i++) {
+      var r = keys[i]
+      var disabled = !canAdd(r)
+      var style = disabled ? ' style="opacity:0.35;cursor:default;pointer-events:none"' : ''
+      var label = tradeMode === "bank" && action === "add-give" ? RESOURCE_EMOJI[r] + '\u00d7' + stepFn(r) : RESOURCE_EMOJI[r]
+      html += '<span class="trade-pool-item"' + style + ' data-trade-action="' + action + '" data-trade-res="' + r + '">' + label + '</span>'
+    }
+    return html
+  }
+
+  function render() {
+    return (
+      '<div class="modal trade-modal">' +
+        '<div class="trade-header">Trade with ' + tradeMode + '</div>' +
+        '<div class="trade-columns">' +
+          '<div class="trade-col">' +
+            '<div class="trade-col-title">Give</div>' +
+            '<div class="trade-selection">' + chipsHTML(give, "remove-give") + '</div>' +
+            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-give", giveStep, canAddGive) + '</div>' +
+          '</div>' +
+          '<div class="trade-col">' +
+            '<div class="trade-col-title">Take</div>' +
+            '<div class="trade-selection">' + chipsHTML(take, "remove-take") + '</div>' +
+            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-take", takeStep, canAddTake) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="trade-actions">' +
+          '<button class="btn btn-primary" id="trade-ok"' + (validate() ? '' : ' disabled') + '>OK</button>' +
+          '<button class="btn" id="trade-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>'
+    )
+  }
+
+  function buildOverlay() {
+    var overlay = document.createElement("div")
+    overlay.className = "modal-overlay"
+    overlay.innerHTML = render()
+    document.body.appendChild(overlay)
+    return overlay
+  }
+
+  function bind(overlay) {
+    var okBtn = document.getElementById("trade-ok")
+    if (okBtn && !okBtn.disabled) {
+      okBtn.addEventListener("click", function () {
+        Game.doTrade(give, take, tradeMode === "bank" ? "bank" : tradeMode)
+        document.body.removeChild(overlay)
+        self.render()
+      })
+    }
+
+    document.getElementById("trade-cancel").addEventListener("click", function () {
+      document.body.removeChild(overlay)
+    })
+
+    var poolClicks = overlay.querySelectorAll("[data-trade-action]")
+    for (var i = 0; i < poolClicks.length; i++) {
+      poolClicks[i].addEventListener("click", function () {
+        var action = this.getAttribute("data-trade-action")
+        var res = this.getAttribute("data-trade-res")
+        if (action === "add-give") {
+          give[res] += giveStep(res)
+          overlay.innerHTML = render()
+          bind(overlay)
+        } else if (action === "remove-give") {
+          give[res] = Math.max(0, give[res] - giveStep(res))
+          overlay.innerHTML = render()
+          bind(overlay)
+        } else if (action === "add-take") {
+          take[res] += takeStep()
+          overlay.innerHTML = render()
+          bind(overlay)
+        } else if (action === "remove-take") {
+          take[res] = Math.max(0, take[res] - takeStep())
+          overlay.innerHTML = render()
+          bind(overlay)
+        }
+      })
+    }
+  }
+
+  var overlay = buildOverlay()
+  bind(overlay)
 }
 
 var _homeScale = 0
@@ -573,6 +731,10 @@ function compactResource(res, count) {
   return '<span class="res-item">' + emoji + count + '</span>'
 }
 
+function cpHasRes(cp) {
+  return cp.resources.brick > 0 || cp.resources.lumber > 0 || cp.resources.wool > 0 || cp.resources.grain > 0 || cp.resources.ore > 0
+}
+
 UIInstance.prototype.renderActions = function () {
   var self = this
   var actions = document.getElementById("actions")
@@ -638,6 +800,9 @@ UIInstance.prototype.renderActions = function () {
       }
       html += '<div id="build-status">' + (msgs[this._buildMode] || "") + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
     }
+
+    html += '<div class="phase-label" style="margin-top:4px">🔁Trade</div>'
+    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>🔁 Trade</button>'
 
     if (!this._buildMode) {
       setValidPositions(null)
@@ -734,6 +899,13 @@ UIInstance.prototype.bindActionButtons = function () {
       setValidPositions("city")
       setClickMode("city")
       self.render()
+    })
+  }
+
+  var tradeBtn = document.getElementById("trade-btn")
+  if (tradeBtn && !tradeBtn.disabled) {
+    tradeBtn.addEventListener("click", function () {
+      self.openTradePopup()
     })
   }
 
