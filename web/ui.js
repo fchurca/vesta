@@ -285,9 +285,7 @@ UIInstance.prototype.showLanding = function () {
 
 function backfillPlayerRates() {
   for (var p = 0; p < game.players.length; p++) {
-    if (!game.players[p].rates) {
-      game.players[p].rates = { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 }
-    }
+    game.players[p].rates = computeRates(game, p)
   }
 }
 
@@ -801,8 +799,8 @@ UIInstance.prototype.renderActions = function () {
       html += '<div id="build-status">' + (msgs[this._buildMode] || "") + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
     }
 
-    html += '<div class="phase-label" style="margin-top:4px">🔁Trade</div>'
-    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>🔁 Trade</button>'
+    html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
+    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
 
     if (!this._buildMode) {
       setValidPositions(null)

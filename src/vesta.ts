@@ -31,7 +31,7 @@ export interface Tile {
 
 export interface Port {
   resource: Resource | null
-  vertices: [HexCoord, HexCoord]
+  vertices: [{ q: number; r: number; corner: number }, { q: number; r: number; corner: number }]
 }
 
 export interface Board {
@@ -191,19 +191,32 @@ export const BUILDING_COST: Record<string, Partial<Record<Resource, number>>> = 
   city: { [Resource.Grain]: 2, [Resource.Ore]: 3 },
 }
 
-const PORT_EDGES: [HexCoord, HexCoord][] = [
-  [{ q: 2, r: -2 }, { q: 2, r: -1 }],
-  [{ q: 2, r: -1 }, { q: 1, r: 1 }],
-  [{ q: 1, r: 1 }, { q: 0, r: 2 }],
-  [{ q: 0, r: 2 }, { q: -1, r: 2 }],
-  [{ q: -1, r: 2 }, { q: -2, r: 2 }],
-  [{ q: -2, r: 2 }, { q: -2, r: 1 }],
-  [{ q: -2, r: 1 }, { q: -2, r: 0 }],
-  [{ q: -2, r: 0 }, { q: -1, r: -1 }],
-  [{ q: -1, r: -1 }, { q: 0, r: -2 }],
-  [{ q: 0, r: -2 }, { q: 1, r: -2 }],
-  [{ q: 1, r: -2 }, { q: 2, r: -2 }],
-  [{ q: 2, r: -2 }, { q: 2, r: -1 }],
+type PortVertex = { q: number; r: number; corner: number }
+
+const PORT_EDGES: [PortVertex, PortVertex][] = [
+  [{ q: 2, r: -2, corner: 0 }, { q: 2, r: -2, corner: 1 }],
+  [{ q: 2, r: -1, corner: 0 }, { q: 2, r: -1, corner: 1 }],
+  [{ q: 2, r: 0, corner: 1 }, { q: 2, r: 0, corner: 2 }],
+  [{ q: 1, r: 1, corner: 1 }, { q: 1, r: 1, corner: 2 }],
+  [{ q: 0, r: 2, corner: 2 }, { q: 0, r: 2, corner: 3 }],
+  [{ q: -1, r: 2, corner: 2 }, { q: -1, r: 2, corner: 3 }],
+  [{ q: -2, r: 2, corner: 3 }, { q: -2, r: 2, corner: 4 }],
+  [{ q: -2, r: 1, corner: 3 }, { q: -2, r: 1, corner: 4 }],
+  [{ q: -2, r: 0, corner: 4 }, { q: -2, r: 0, corner: 5 }],
+  [{ q: -1, r: -1, corner: 4 }, { q: -1, r: -1, corner: 5 }],
+  [{ q: 0, r: -2, corner: 5 }, { q: 0, r: -2, corner: 0 }],
+  [{ q: 1, r: -2, corner: 5 }, { q: 1, r: -2, corner: 0 }],
+]
+
+const HEX_DIRECTIONS: [number, number][] = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]]
+
+const PORT_RESOURCE_DIST: (Resource | null)[] = [
+  null, null, null, null,
+  Resource.Brick,
+  Resource.Lumber,
+  Resource.Wool,
+  Resource.Grain,
+  Resource.Ore,
 ]
 
 export const DESERT = Resource.Desert
@@ -759,6 +772,39 @@ export function checkWin(state: GameState): number {
   return -1
 }
 
+export function computeRates(state: GameState, playerIdx: number): Record<TradeResource, number> {
+  const rates: Record<string, number> = { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 }
+  const player = state.players[playerIdx]!
+  const occupiedVerts = new Set<string>()
+
+  for (const s of player.settlements) {
+    occupiedVerts.add(vertexKey(s.q, s.r, s.corner))
+  }
+  for (const c of player.cities) {
+    occupiedVerts.add(vertexKey(c.q, c.r, c.corner))
+  }
+
+  for (const port of state.board.ports) {
+    const [v1, v2] = port.vertices
+    const vk1 = vertexKey(v1.q, v1.r, v1.corner)
+    const vk2 = vertexKey(v2.q, v2.r, v2.corner)
+
+    if (occupiedVerts.has(vk1) || occupiedVerts.has(vk2)) {
+      if (port.resource === null) {
+        rates[Resource.Brick] = Math.min(rates[Resource.Brick]!, 3)
+        rates[Resource.Lumber] = Math.min(rates[Resource.Lumber]!, 3)
+        rates[Resource.Wool] = Math.min(rates[Resource.Wool]!, 3)
+        rates[Resource.Grain] = Math.min(rates[Resource.Grain]!, 3)
+        rates[Resource.Ore] = Math.min(rates[Resource.Ore]!, 3)
+      } else if (port.resource !== Resource.Desert) {
+        rates[port.resource] = 2
+      }
+    }
+  }
+
+  return rates as Record<TradeResource, number>
+}
+
 export function getValidPositions(
   state: GameState,
   mode: string
@@ -826,6 +872,17 @@ export function createGame(opts: GameOptions): GameState {
 
   const robber = tiles.find(t => t.resource === Resource.Desert)!.coord
 
+  const portEdgeOrder = seededShuffle(
+    PORT_EDGES.map((_, i) => i),
+    opts.roll + 2
+  )
+  const selectedPortEdges = portEdgeOrder.slice(0, 9)
+  const portResources = seededShuffle(PORT_RESOURCE_DIST, opts.roll + 3)
+  const ports: Port[] = selectedPortEdges.map((idx, i) => ({
+    resource: portResources[i]!,
+    vertices: PORT_EDGES[idx]!,
+  }))
+
   const zeroRes = (): Record<Resource, number> => ({
     [Resource.Brick]: 0,
     [Resource.Lumber]: 0,
@@ -843,7 +900,7 @@ export function createGame(opts: GameOptions): GameState {
     rolled: false,
     setupStep: "settlement",
     pendingSettlement: null,
-    board: { tiles, ports: PORT_EDGES.map(v => ({ resource: null, vertices: v })), robber },
+    board: { tiles, ports, robber },
     players: Array.from({ length: opts.players }, (_, i) => ({
       id: i,
       name: truncateText("Player " + (i + 1), 64, 32),

@@ -56,4 +56,4 @@ vesta/
 
 - `/knead` — Review all modified/new files for integrity, consistency, and correctness. Cross-check function signatures between TS and web JS, verify no dead references or drift, check script load order, and report any issues found.
 - `/bumpver [major|minor|patch]` — Bump the version in `package.json`. Defaults to `patch` if no argument given. Parse the semver, increment the appropriate segment, write it back.
-- `/gitdiff` — Run `git diff HEAD`, analyze the changes, and propose a commit message of under 10 lines total. Do not stage or commit.
+- `/gitdiff` — Run `git diff HEAD`, analyze the changes, and propose a commit message of under 10 lines total. If the version was bumped in the diff, prefix the first line with `vx.y.z: `. Do not stage or commit.

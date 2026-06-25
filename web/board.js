@@ -431,6 +431,58 @@ function getPulseIntensity() {
 }
 
 function drawPorts() {
+  var ctx = _ctx
+  for (var pi = 0; pi < game.board.ports.length; pi++) {
+    var port = game.board.ports[pi]
+    var v1 = port.vertices[0]
+    var v2 = port.vertices[1]
+    var p1 = hexCornerPixel(v1.q, v1.r, v1.corner)
+    var p2 = hexCornerPixel(v2.q, v2.r, v2.corner)
+    var mx = (p1.x + p2.x) / 2
+    var my = (p1.y + p2.y) / 2
+
+    var typeText = ""
+    if (port.resource === null) {
+      typeText = "\u2696\u2696\u2696"
+    } else {
+      var em = RESOURCE_EMOJI[port.resource] || ""
+      typeText = em + em
+    }
+    drawPortLabel(ctx, mx, my, typeText)
+  }
+}
+
+function drawPortLabel(ctx, x, y, text) {
+  ctx.font = "bold 12px sans-serif"
+  var tw = ctx.measureText(text).width
+  var bw = tw + 8
+  var bh = 20
+
+  ctx.fillStyle = "rgba(60, 40, 20, 0.85)"
+  roundRect(ctx, x - bw / 2, y - bh / 2, bw, bh, 4)
+  ctx.fill()
+  ctx.strokeStyle = "#8b6914"
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillStyle = "#fff"
+  ctx.fillText(text, x, y + 1)
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.arcTo(x + w, y, x + w, y + r, r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+  ctx.lineTo(x + r, y + h)
+  ctx.arcTo(x, y + h, x, y + h - r, r)
+  ctx.lineTo(x, y + r)
+  ctx.arcTo(x, y, x + r, y, r)
+  ctx.closePath()
 }
 
 function drawAllBuildings() {

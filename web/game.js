@@ -77,6 +77,7 @@ var Game = {
 
   placeSettlement: function (playerIdx, q, r, corner) {
     game = placeSettlement(game, playerIdx, q, r, corner)
+    game.players[playerIdx].rates = computeRates(game, playerIdx)
     game.currentTurnMoves.push({ type: "place-settlement", player: playerIdx, q: q, r: r, corner: corner })
     saveGame()
   },
@@ -89,6 +90,7 @@ var Game = {
 
   placeCity: function (playerIdx, q, r, corner) {
     game = placeCity(game, playerIdx, q, r, corner)
+    game.players[playerIdx].rates = computeRates(game, playerIdx)
     game.currentTurnMoves.push({ type: "place-city", player: playerIdx, q: q, r: r, corner: corner })
     saveGame()
   },

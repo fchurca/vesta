@@ -23,6 +23,7 @@ import {
   nextTurn,
   giveStartingResources,
   checkWin,
+  computeRates,
   getValidPositions,
   tileAt,
   BUILDING_COST,
@@ -37,7 +38,7 @@ import {
   titleToSlug,
 } from "./vesta.ts"
 
-import type { GameMove, GameTurn, GameRecord } from "./vesta.ts"
+import type { GameMove, GameTurn, GameRecord, TradeResource } from "./vesta.ts"
 
 const makeState = () => createGame({ players: 4, roll: 42 })
 
@@ -114,9 +115,31 @@ describe("createGame", () => {
     equal(g.turn, 0)
   })
 
-  it("starts with 12 ports", () => {
+  it("starts with 9 ports", () => {
     const g = makeState()
-    equal(g.board.ports.length, 12)
+    equal(g.board.ports.length, 9)
+  })
+
+  it("ports have correct resource distribution", () => {
+    let nullCount = 0
+    let specificCount = 0
+    const resources = new Set<string>()
+    for (let seed = 0; seed < 50; seed++) {
+      const g = createGame({ players: 4, roll: seed })
+      equal(g.board.ports.length, 9)
+      for (const p of g.board.ports) {
+        if (p.resource === null) nullCount++
+        else { specificCount++; resources.add(p.resource) }
+      }
+    }
+    equal(nullCount, 200)
+    equal(specificCount, 250)
+    equal(resources.size, 5)
+    ok(resources.has(Resource.Brick))
+    ok(resources.has(Resource.Lumber))
+    ok(resources.has(Resource.Wool))
+    ok(resources.has(Resource.Grain))
+    ok(resources.has(Resource.Ore))
   })
 
   it("has correct resource distribution (3 brick, 4 lumber, 4 wool, 4 grain, 3 ore, 1 desert)", () => {
@@ -658,6 +681,58 @@ describe("checkWin", () => {
     }
     equal(g.players[0]!.vp, 10)
     equal(checkWin(g), 0)
+  })
+})
+
+describe("computeRates", () => {
+  it("returns 4 for all resources when player has no port access", () => {
+    const g = makeState()
+    const rates = computeRates(g, 0)
+    equal(rates.brick, 4)
+    equal(rates.lumber, 4)
+    equal(rates.wool, 4)
+    equal(rates.grain, 4)
+    equal(rates.ore, 4)
+  })
+
+  it("returns 2 for the matching resource when player uses a 2:1 port", () => {
+    const g = makeState()
+    for (const port of g.board.ports) {
+      if (port.resource !== null) {
+        const v = port.vertices[0]
+        let g2 = placeSettlement(g, 0, v.q, v.r, v.corner)
+        g2 = { ...g2, players: g2.players.map((p, i) =>
+          i === 0
+            ? { ...p, vp: 2, settlements: [...p.settlements, { q: v.q, r: v.r, corner: v.corner }] }
+            : p
+        ) as typeof g2.players }
+        const rates = computeRates(g2, 0)
+        equal(rates[port.resource as TradeResource], 2)
+        break
+      }
+    }
+  })
+
+  it("returns 3 for all resources when player uses a 3:1 port", () => {
+    const g = makeState()
+    for (const port of g.board.ports) {
+      if (port.resource === null) {
+        const v = port.vertices[0]
+        let g2 = placeSettlement(g, 0, v.q, v.r, v.corner)
+        g2 = { ...g2, players: g2.players.map((p, i) =>
+          i === 0
+            ? { ...p, vp: 2, settlements: [...p.settlements, { q: v.q, r: v.r, corner: v.corner }] }
+            : p
+        ) as typeof g2.players }
+        const rates = computeRates(g2, 0)
+        equal(rates.brick, 3)
+        equal(rates.lumber, 3)
+        equal(rates.wool, 3)
+        equal(rates.grain, 3)
+        equal(rates.ore, 3)
+        break
+      }
+    }
   })
 })
 
