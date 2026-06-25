@@ -3,7 +3,6 @@ var LUMBER = "lumber"
 var WOOL = "wool"
 var GRAIN = "grain"
 var ORE = "ore"
-var DESERT = "desert"
 
 var RESOURCE_NAMES = {
   brick: "Brick",
