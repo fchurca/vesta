@@ -51,3 +51,9 @@ vesta/
 - After changing web/ JS code, always run `npm test && npm run bake` to verify both the source and the bundled output
 - Keep PRs/commits small and focused
 - When told to upgrade dependencies to their latest LTS, browse online to find current versions — don't rely on internal knowledge
+
+## Commands
+
+- `/knead` — Review all modified/new files for integrity, consistency, and correctness. Cross-check function signatures between TS and web JS, verify no dead references or drift, check script load order, and report any issues found.
+- `/bumpver [major|minor|patch]` — Bump the version in `package.json`. Defaults to `patch` if no argument given. Parse the semver, increment the appropriate segment, write it back.
+- `/gitdiff` — Run `git diff HEAD`, analyze the changes, and propose a commit message of under 10 lines total. Do not stage or commit.
