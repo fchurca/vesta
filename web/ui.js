@@ -856,6 +856,29 @@ UIInstance.prototype.renderActions = function () {
       html += '<div id="build-status">' + (msgs[this._buildMode] || "") + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
     }
 
+    html += '<div class="phase-label" style="margin-top:4px">📜Dev Cards</div>'
+    html += '<div class="btn-row">'
+    var devCanAfford = true
+    var devCost = BUILDING_COST.development
+    for (var dr in devCost) { if ((cp.resources[dr] || 0) < devCost[dr]) { devCanAfford = false; break } }
+    var devCostStr = ""
+    for (var dr2 in devCost) { for (var di = 0; di < devCost[dr2]; di++) devCostStr += RESOURCE_EMOJI[dr2] }
+    html += '<button class="btn" id="buy-dev-card"' + (devCanAfford ? '' : ' disabled') + ' title="Buy development card">\uD83C\uDCCF' + devCostStr + '</button>'
+    html += '</div>'
+
+    if (cp.hand && cp.hand.length > 0) {
+      html += '<div class="dev-hand">'
+      for (var hi = 0; hi < cp.hand.length; hi++) {
+        var card = cp.hand[hi]
+        var emoji = DEV_CARD_EMOJI[card.cardType] || "?"
+        var available = card.available
+        var clickable = available ? ' data-dev-card-idx="' + hi + '"' : ''
+        var dim = available ? '' : ' style="opacity:0.4"'
+        html += '<div class="dev-card"' + dim + clickable + '>' + emoji + '</div>'
+      }
+      html += '</div>'
+    }
+
     html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
     html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
     if (cp.rates) {
@@ -971,6 +994,32 @@ UIInstance.prototype.bindActionButtons = function () {
     tradeBtn.addEventListener("click", function () {
       self.openTradePopup()
     })
+  }
+
+  var buyDev = document.getElementById("buy-dev-card")
+  if (buyDev && !buyDev.disabled) {
+    buyDev.addEventListener("click", function () {
+      Game.buyDevCard(game.currentPlayer)
+      self.render()
+    })
+  }
+
+  var devCards = document.querySelectorAll("[data-dev-card-idx]")
+  for (var dci = 0; dci < devCards.length; dci++) {
+    ;(function (idx) {
+      devCards[dci].addEventListener("click", function () {
+        Game.playDevCard(game.currentPlayer, idx)
+        self.render()
+        var winner = Game.checkWin()
+        if (winner >= 0) {
+          game.winner = winner
+          game.phase = "gameover"
+          saveGame()
+          self.render()
+          self.showToast(game.players[winner].name + " wins with " + game.players[winner].vp + " VP!")
+        }
+      })
+    })(parseInt(devCards[dci].getAttribute("data-dev-card-idx")))
   }
 
   var newGame = document.getElementById("new-game-btn")
@@ -1145,6 +1194,10 @@ UIInstance.prototype.renderLog = function () {
         var takeStr = Object.entries(move.take).filter(function (e) { return e[1] > 0 }).map(function (e) { return e[1] + " " + e[0] }).join(", ")
         return names[move.player] + " traded " + giveStr + " with " + partnerStr + " for " + takeStr
       }
+      case "buy-dev-card":
+        return names[move.player] + " bought a development card"
+      case "play-dev-card":
+        return names[move.player] + " played a " + move.cardType + " card"
     }
     return ""
   }

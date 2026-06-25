@@ -40,6 +40,11 @@ export interface Board {
   robber: HexCoord
 }
 
+export interface DevCard {
+  cardType: string
+  available: boolean
+}
+
 export interface RoadData {
   key: string
   q1: number
@@ -60,6 +65,7 @@ export interface Player {
   vp: number
   roadCount: number
   rates: Record<TradeResource, number>
+  hand: DevCard[]
 }
 
 export type GamePhase = "initial_first" | "initial_second" | "play" | "gameover"
@@ -86,6 +92,8 @@ export type GameMove =
   | { type: "place-city"; player: number; q: number; r: number; corner: number }
   | { type: "end-turn"; player: number }
   | { type: "trade"; player: number; partner: "bank" | number; give: Record<TradeResource, number>; take: Record<TradeResource, number> }
+  | { type: "buy-dev-card"; player: number }
+  | { type: "play-dev-card"; player: number; cardType: string }
 
 export interface GameTurn {
   turn: number
@@ -189,6 +197,7 @@ export const BUILDING_COST: Record<string, Partial<Record<Resource, number>>> = 
   road: { [Resource.Brick]: 1, [Resource.Lumber]: 1 },
   settlement: { [Resource.Brick]: 1, [Resource.Lumber]: 1, [Resource.Wool]: 1, [Resource.Grain]: 1 },
   city: { [Resource.Grain]: 2, [Resource.Ore]: 3 },
+  development: { [Resource.Ore]: 1, [Resource.Wool]: 1, [Resource.Grain]: 1 },
 }
 
 type PortVertex = { q: number; r: number; corner: number }
@@ -209,6 +218,8 @@ const PORT_EDGES: [PortVertex, PortVertex][] = [
 ]
 
 const HEX_DIRECTIONS: [number, number][] = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]]
+
+const DEV_CARD_TYPES: string[] = ["victory"]
 
 const PORT_RESOURCE_DIST: (Resource | null)[] = [
   null, null, null, null,
@@ -731,12 +742,19 @@ export function nextTurn(state: GameState): GameState {
   const nextPlayer = (state.currentPlayer + 1) % state.players.length
   const newTurn = state.turn + 1
 
+  const newPlayers = state.players.map((p, i) =>
+    i === nextPlayer
+      ? { ...p, hand: p.hand.map(c => ({ ...c, available: true })) }
+      : p
+  )
+
   return {
     ...state,
     currentPlayer: nextPlayer,
     rolled: false,
     dice: null,
     turn: newTurn,
+    players: newPlayers,
   }
 }
 
@@ -803,6 +821,49 @@ export function computeRates(state: GameState, playerIdx: number): Record<TradeR
   }
 
   return rates as Record<TradeResource, number>
+}
+
+export function canBuyDevCard(state: GameState, playerIdx: number): boolean {
+  const p = state.players[playerIdx]!
+  return (
+    (p.resources[Resource.Ore] ?? 0) >= 1 &&
+    (p.resources[Resource.Wool] ?? 0) >= 1 &&
+    (p.resources[Resource.Grain] ?? 0) >= 1
+  )
+}
+
+export function buyDevCard(state: GameState, playerIdx: number): GameState {
+  const p = state.players[playerIdx]!
+  const cost = BUILDING_COST.development!
+  const newRes = { ...p.resources }
+  for (const r in cost) {
+    const res = r as Resource
+    newRes[res] = (newRes[res] ?? 0) - cost[res]!
+  }
+  const cardType = seededShuffle(DEV_CARD_TYPES, state.turn + playerIdx + 99)[0]!
+  const newPlayers = state.players.map((pl, i) =>
+    i === playerIdx
+      ? { ...pl, resources: newRes, hand: [...pl.hand, { cardType, available: false }] }
+      : pl
+  )
+  return { ...state, players: newPlayers }
+}
+
+export function playDevCard(state: GameState, playerIdx: number, cardType: string): GameState {
+  const p = state.players[playerIdx]!
+  const idx = p.hand.findIndex(c => c.cardType === cardType && c.available)
+  if (idx === -1) return state
+
+  let newVp = p.vp
+  if (cardType === "victory") {
+    newVp += 1
+  }
+
+  const newHand = p.hand.filter((_, i) => i !== idx)
+  const newPlayers = state.players.map((pl, i) =>
+    i === playerIdx ? { ...pl, hand: newHand, vp: newVp } : pl
+  )
+  return { ...state, players: newPlayers }
 }
 
 export function getValidPositions(
@@ -911,6 +972,7 @@ export function createGame(opts: GameOptions): GameState {
       vp: 0,
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
+      hand: [],
     })),
     winner: null,
     title: truncateText(opts.title ?? "", 64, 32),
@@ -993,6 +1055,12 @@ export function applyMove(state: GameState, move: GameMove): GameState {
 
       return { ...state, players: newPlayers }
     }
+    case "buy-dev-card": {
+      return buyDevCard(state, move.player)
+    }
+    case "play-dev-card": {
+      return playDevCard(state, move.player, move.cardType)
+    }
   }
 }
 
@@ -1049,6 +1117,12 @@ export function deriveLog(record: GameRecord): string[] {
           out.push(names[move.player] + " traded " + giveStr + " with " + partnerStr + " for " + takeStr)
           break
         }
+        case "buy-dev-card":
+          out.push(names[move.player] + " bought a development card")
+          break
+        case "play-dev-card":
+          out.push(names[move.player] + " played a " + move.cardType + " card")
+          break
       }
     }
   }

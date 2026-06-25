@@ -801,3 +801,33 @@ h2 {
     gap: 2px;
   }
 }
+
+/* ── Dev Cards ──────────────────────────────────── */
+
+.dev-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.dev-card {
+  width: 32px;
+  height: 44px;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  user-select: none;
+}
+
+.dev-card:hover {
+  background: var(--border);
+  transform: translateY(-2px);
+}

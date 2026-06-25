@@ -24,6 +24,9 @@ import {
   giveStartingResources,
   checkWin,
   computeRates,
+  canBuyDevCard,
+  buyDevCard,
+  playDevCard,
   getValidPositions,
   tileAt,
   BUILDING_COST,
@@ -38,7 +41,7 @@ import {
   titleToSlug,
 } from "./vesta.ts"
 
-import type { GameMove, GameTurn, GameRecord, TradeResource } from "./vesta.ts"
+import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard } from "./vesta.ts"
 
 const makeState = () => createGame({ players: 4, roll: 42 })
 
@@ -237,6 +240,12 @@ describe("BUILDING_COST", () => {
   it("city costs 2 grain + 3 ore", () => {
     equal(BUILDING_COST.city!["grain"], 2)
     equal(BUILDING_COST.city!["ore"], 3)
+  })
+
+  it("development costs 1 ore + 1 wool + 1 grain", () => {
+    equal(BUILDING_COST.development!["ore"], 1)
+    equal(BUILDING_COST.development!["wool"], 1)
+    equal(BUILDING_COST.development!["grain"], 1)
   })
 })
 
@@ -736,6 +745,66 @@ describe("computeRates", () => {
   })
 })
 
+describe("devCards", () => {
+  it("canBuyDevCard returns false when player has no resources", () => {
+    const g = makeState()
+    equal(canBuyDevCard(g, 0), false)
+  })
+
+  it("canBuyDevCard returns true when player has enough resources", () => {
+    const g = makeState()
+    g.players[0]!.resources[Resource.Ore] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    equal(canBuyDevCard(g, 0), true)
+  })
+
+  it("buyDevCard adds a card to hand as unavailable", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Ore] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    g = buyDevCard(g, 0)
+    equal(g.players[0]!.hand.length, 1)
+    equal(g.players[0]!.hand[0]!.cardType, "victory")
+    equal(g.players[0]!.hand[0]!.available, false)
+  })
+
+  it("buyDevCard deducts resources", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Ore] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    g = buyDevCard(g, 0)
+    equal(g.players[0]!.resources[Resource.Ore], 0)
+    equal(g.players[0]!.resources[Resource.Wool], 0)
+    equal(g.players[0]!.resources[Resource.Grain], 0)
+  })
+
+  it("playDevCard removes the card and grants VP", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "victory", available: true }]
+    g = playDevCard(g, 0, "victory")
+    equal(g.players[0]!.hand.length, 0)
+    equal(g.players[0]!.vp, 1)
+  })
+
+  it("playDevCard refuses unavailable card", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "victory", available: false }]
+    g = playDevCard(g, 0, "victory")
+    equal(g.players[0]!.hand.length, 1)
+    equal(g.players[0]!.vp, 0)
+  })
+
+  it("playDevCard refuses card not in hand", () => {
+    let g = makeState()
+    g = playDevCard(g, 0, "victory")
+    equal(g.players[0]!.hand.length, 0)
+    equal(g.players[0]!.vp, 0)
+  })
+})
+
 describe("getValidPositions", () => {
   it("returns all vertices for initial-settlement mode", () => {
     const g = makeState()
@@ -849,6 +918,24 @@ describe("applyMove", () => {
     } catch (e: any) {
       ok(e.message.includes("Not enough resources"))
     }
+  })
+
+  it("buy-dev-card adds a card to hand as unavailable", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Ore] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    const next = applyMove(g, { type: "buy-dev-card", player: 0 })
+    equal(next.players[0]!.hand.length, 1)
+    equal(next.players[0]!.hand[0]!.available, false)
+  })
+
+  it("play-dev-card removes card and adds VP", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "victory", available: true }]
+    const next = applyMove(g, { type: "play-dev-card", player: 0, cardType: "victory" })
+    equal(next.players[0]!.hand.length, 0)
+    equal(next.players[0]!.vp, 1)
   })
 })
 
@@ -1011,6 +1098,32 @@ describe("deriveLog", () => {
     const log = deriveLog(record)
     ok(log.some(m => m.includes("traded")))
     ok(log.some(m => m.includes("bank")))
+  })
+
+  it("includes buy-dev-card message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "buy-dev-card", player: 0 }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("bought a development card")))
+  })
+
+  it("includes play-dev-card message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "play-dev-card", player: 0, cardType: "victory" }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("played a victory card")))
   })
 })
 

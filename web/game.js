@@ -22,6 +22,10 @@ var RESOURCE_EMOJI = {
   desert: "\uD83C\uDF35",
 }
 
+var DEV_CARD_EMOJI = {
+  victory: "\uD83E\uDE99",
+}
+
 var RESOURCE_COLORS = {
   brick: "#b45309",
   lumber: "#15803d",
@@ -110,6 +114,26 @@ var Game = {
       give: give,
       take: take,
     })
+    saveGame()
+  },
+
+  canBuyDevCard: function (playerIdx) {
+    return canBuyDevCard(game, playerIdx)
+  },
+
+  buyDevCard: function (playerIdx) {
+    game = applyMove(game, { type: "buy-dev-card", player: playerIdx })
+    game.currentTurnMoves.push({ type: "buy-dev-card", player: playerIdx })
+    saveGame()
+  },
+
+  playDevCard: function (playerIdx, cardIndex) {
+    if (!game.players[playerIdx] || !game.players[playerIdx].hand[cardIndex]) return
+    var card = game.players[playerIdx].hand[cardIndex]
+    if (!card.available) return
+    var move = { type: "play-dev-card", player: playerIdx, cardType: card.cardType }
+    game = applyMove(game, move)
+    game.currentTurnMoves.push(move)
     saveGame()
   },
 
