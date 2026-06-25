@@ -1064,6 +1064,26 @@ UIInstance.prototype.renderLog = function () {
     names[i] = game.players[i].name
   }
 
+  function lineForMove(move) {
+    switch (move.type) {
+      case "roll-dice":
+        return names[move.player] + " rolled " + move.dice[0] + "+" + move.dice[1] + " = " + (move.dice[0] + move.dice[1])
+      case "place-settlement":
+        return names[move.player] + " built a settlement"
+      case "place-road":
+        return names[move.player] + " built a road"
+      case "place-city":
+        return names[move.player] + " built a city"
+      case "trade": {
+        var partnerStr = move.partner === "bank" ? "bank" : names[move.partner]
+        var giveStr = Object.entries(move.give).filter(function (e) { return e[1] > 0 }).map(function (e) { return e[1] + " " + e[0] }).join(", ")
+        var takeStr = Object.entries(move.take).filter(function (e) { return e[1] > 0 }).map(function (e) { return e[1] + " " + e[0] }).join(", ")
+        return names[move.player] + " traded " + giveStr + " with " + partnerStr + " for " + takeStr
+      }
+    }
+    return ""
+  }
+
   var lines = []
 
   for (var t = 0; t < game.turns.length; t++) {
@@ -1073,7 +1093,8 @@ UIInstance.prototype.renderLog = function () {
       lines.push(names[turn.player] + "'s turn")
     }
     for (var m = 0; m < turn.moves.length; m++) {
-      GameUtil.deriveLogLine(lines, turn.moves[m], names)
+      var l = lineForMove(turn.moves[m])
+      if (l) lines.push(l)
     }
     if (turn.phase !== "play" && turn.moves.length > 0) {
       var lastMove = turn.moves[turn.moves.length - 1]
@@ -1097,7 +1118,8 @@ UIInstance.prototype.renderLog = function () {
       }
     }
     for (var n = 0; n < game.currentTurnMoves.length; n++) {
-      GameUtil.deriveLogLine(lines, game.currentTurnMoves[n], names)
+      var l = lineForMove(game.currentTurnMoves[n])
+      if (l) lines.push(l)
     }
   }
 

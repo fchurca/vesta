@@ -5,6 +5,7 @@ const WEB = resolve(import.meta.dirname)
 const DIST = resolve(WEB, "dist")
 const INDEX = resolve(WEB, "index.html")
 const STYLE = resolve(WEB, "style.css")
+const CORE_JS = resolve(WEB, "core", "vesta.js")
 const GAME_JS = resolve(WEB, "game.js")
 const BOARD_JS = resolve(WEB, "board.js")
 const STORAGE_JS = resolve(WEB, "storage.js")
@@ -26,6 +27,7 @@ const replaceScript = (src, filePath) => {
   html = html.replace(`<script src="${src}"></script>`, `<script>${content}</script>`)
 }
 
+replaceScript("core/vesta.js", CORE_JS)
 replaceScript("game.js", GAME_JS)
 replaceScript("board.js", BOARD_JS)
 replaceScript("storage.js", STORAGE_JS)

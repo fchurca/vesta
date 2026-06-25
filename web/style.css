@@ -628,10 +628,6 @@ h2 {
   display: none;
 }
 
-.head-nav.show {
-  display: none;
-}
-
 .head-nav button {
   background: none;
   border: none;

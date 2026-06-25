@@ -150,7 +150,7 @@ export const BOARD_HEXES: HexCoord[] = [
   { q: -2, r: 1 }, { q: -2, r: 0 }, { q: -1, r: -1 }, { q: 0, r: -2 }, { q: 1, r: -2 }, { q: 2, r: -2 }, { q: 2, r: -1 },
 ]
 
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let s = seed | 0
   return () => {
     s = (s + 0x6d2b79f5) | 0
@@ -160,7 +160,7 @@ function mulberry32(seed: number): () => number {
   }
 }
 
-function seededShuffle<T>(arr: T[], seed: number): T[] {
+export function seededShuffle<T>(arr: T[], seed: number): T[] {
   const rng = mulberry32(seed)
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
@@ -208,12 +208,15 @@ const PORT_EDGES: [HexCoord, HexCoord][] = [
 
 export const DESERT = Resource.Desert
 
-const HEX_SIZE = 48
-const CANVAS_CENTER_X = 375
-const CANVAS_CENTER_Y = 290
+export const HEX_SIZE = 48
+export const CANVAS_WIDTH = 750
+export const CANVAS_HEIGHT = 580
+export const CANVAS_CENTER_X = 375
+export const CANVAS_CENTER_Y = 290
 
 interface Vertex {
   key: string
+  pixel: { x: number; y: number }
   hexes: { q: number; r: number; corner: number }[]
 }
 
@@ -227,13 +230,13 @@ interface Edge {
 let _vertexCache: Record<string, Vertex> | null = null
 let _edgeCache: Record<string, Edge> | null = null
 
-function hexToPixel(q: number, r: number): { x: number; y: number } {
+export function hexToPixel(q: number, r: number): { x: number; y: number } {
   const x = HEX_SIZE * (Math.sqrt(3) * q + (Math.sqrt(3) / 2) * r)
   const y = HEX_SIZE * (3 / 2 * r)
   return { x: CANVAS_CENTER_X + x, y: CANVAS_CENTER_Y + y }
 }
 
-function hexCornerPixel(q: number, r: number, cornerIndex: number): { x: number; y: number } {
+export function hexCornerPixel(q: number, r: number, cornerIndex: number): { x: number; y: number } {
   const center = hexToPixel(q, r)
   const angleDeg = 60 * cornerIndex - 30
   const angleRad = (Math.PI / 180) * angleDeg
@@ -243,7 +246,7 @@ function hexCornerPixel(q: number, r: number, cornerIndex: number): { x: number;
   }
 }
 
-function buildCache(): void {
+export function buildVertexEdgeCache(): void {
   if (_vertexCache) return
   _vertexCache = {}
   _edgeCache = {}
@@ -257,7 +260,7 @@ function buildCache(): void {
       const key = "v_" + Math.round(px.x * 10) + "_" + Math.round(px.y * 10)
 
       if (!vByPixel[key]) {
-        vByPixel[key] = { key, hexes: [] }
+        vByPixel[key] = { key, pixel: px, hexes: [] }
       }
       vByPixel[key]!.hexes.push({ q: h.q, r: h.r, corner: c })
     }
@@ -291,12 +294,12 @@ function buildCache(): void {
 }
 
 function getVertexCache(): Record<string, Vertex> {
-  buildCache()
+  buildVertexEdgeCache()
   return _vertexCache!
 }
 
 function getEdgeCache(): Record<string, Edge> {
-  buildCache()
+  buildVertexEdgeCache()
   return _edgeCache!
 }
 

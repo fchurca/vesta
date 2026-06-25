@@ -1,8 +1,3 @@
-var HEX_SIZE = 48
-var CANVAS_WIDTH = 750
-var CANVAS_HEIGHT = 580
-var CANVAS_CENTER_X = CANVAS_WIDTH / 2
-var CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
 var CLICK_THRESHOLD = 50
 var EDGE_CLICK_THRESHOLD = 65
 
@@ -70,7 +65,7 @@ function initBoard(canvas, callbacks) {
   _ctx = canvas.getContext("2d")
   _callbacks = callbacks || {}
 
-  GameUtil.buildVertexEdgeCache()
+  buildVertexEdgeCache()
   _allVertices = []
   _allEdges = []
 

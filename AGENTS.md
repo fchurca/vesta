@@ -16,14 +16,20 @@ When resolving contradictions between files, this order decides:
 
 ```
 vesta/
-  AGENTS.md        Agent instructions
-  README.md        Project overview
-  LICENSE          BSD 2-Clause
-  src/             TypeScript source
-    vesta.ts       Core game module
-    vesta.test.ts  Tests
-  package.json     Node/TypeScript config
-  tsconfig.json    TypeScript compiler config
+  AGENTS.md               Agent instructions
+  README.md               Project overview
+  LICENSE                 BSD 2-Clause
+  src/                    TypeScript source
+    vesta.ts              Core game module
+    vesta.test.ts         Tests
+  tsconfig.json           TypeScript compiler config
+  tsconfig.web.json       Web-specific TS config (compiles to web/core/)
+  scripts/
+    strip-exports.mjs     Post-process ESM → classic globals
+  web/
+    core/                 Compiled + stripped globals (generated)
+    game.js, board.js, ...
+  package.json            Node/TypeScript config
 ```
 
 ## Conventions
@@ -41,6 +47,7 @@ vesta/
 ## Workflow
 
 - Before editing, read the file first
-- After making changes, run `npm run check` and `npm test` to verify
+- After making changes, run `npm run compile` (regenerates `web/core/vesta.js`), then `npm run check` and `npm test` to verify
+- After changing web/ JS code, always run `npm test && npm run bake` to verify both the source and the bundled output
 - Keep PRs/commits small and focused
 - When told to upgrade dependencies to their latest LTS, browse online to find current versions — don't rely on internal knowledge

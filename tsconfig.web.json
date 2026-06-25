@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "web/core",
+    "declaration": false,
+    "rootDir": ".",
+    "allowImportingTsExtensions": false,
+    "module": "ES2022"
+  },
+  "include": ["src/vesta.ts"]
+}
