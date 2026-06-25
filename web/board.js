@@ -5,27 +5,41 @@ var _oceanPattern = null
 
 function getOceanPattern() {
   if (_oceanPattern) return _oceanPattern
-  var size = 20
+  var size = 60
   var c = document.createElement("canvas")
   c.width = size
   c.height = size
   var cx = c.getContext("2d")
   cx.fillStyle = "#0a1628"
   cx.fillRect(0, 0, size, size)
+
   cx.strokeStyle = "#1a3a5c"
-  cx.lineWidth = 1
-  cx.beginPath()
-  cx.moveTo(0, 0)
-  cx.lineTo(size, size)
-  cx.stroke()
-  cx.beginPath()
-  cx.moveTo(-size / 2, size / 2)
-  cx.lineTo(size / 2, -size / 2)
-  cx.stroke()
-  cx.beginPath()
-  cx.moveTo(size / 2, size * 1.5)
-  cx.lineTo(size * 1.5, size / 2)
-  cx.stroke()
+  cx.lineWidth = 1.5
+
+  var chevrons = [
+    { x: 10, y: 14 },
+    { x: 30, y: 8 },
+    { x: 50, y: 16 },
+    { x: 6, y: 40 },
+    { x: 28, y: 46 },
+    { x: 48, y: 38 },
+    { x: 18, y: 26 },
+    { x: 42, y: 28 },
+  ]
+  var arm = 5
+  var dx = arm * 0.866
+  var dy = arm * 0.5
+  for (var ci = 0; ci < chevrons.length; ci++) {
+    var px = chevrons[ci].x
+    var py = chevrons[ci].y
+    cx.beginPath()
+    cx.moveTo(px, py)
+    cx.lineTo(px + dx, py + dy)
+    cx.lineTo(px, py)
+    cx.lineTo(px - dx, py + dy)
+    cx.stroke()
+  }
+
   _oceanPattern = _ctx.createPattern(c, "repeat")
   return _oceanPattern
 }
