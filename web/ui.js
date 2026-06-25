@@ -319,6 +319,26 @@ UIInstance.prototype.openTradePopup = function () {
   var take = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
   var RESOURCE_KEYS = ["brick", "lumber", "wool", "grain", "ore"]
 
+  var partners = ["bank"]
+  for (var pi = 1; pi < game.players.length; pi++) {
+    partners.push((game.currentPlayer + pi) % game.players.length)
+  }
+
+  function nextPartner() {
+    var idx = partners.indexOf(tradeMode)
+    return partners[(idx + 1) % partners.length]
+  }
+
+  function partnerLabel() {
+    if (tradeMode === "bank") return "bank"
+    return game.players[tradeMode].name
+  }
+
+  function partnerColor() {
+    if (tradeMode === "bank") return "#8b6914"
+    return game.players[tradeMode].color
+  }
+
   function giveStep(res) { return tradeMode === "bank" ? cp.rates[res] : 1 }
   function takeStep() { return 1 }
 
@@ -329,6 +349,10 @@ UIInstance.prototype.openTradePopup = function () {
 
   function canAddTake(res) {
     if (give[res] > 0) return false
+    if (tradeMode !== "bank") {
+      var partner = game.players[tradeMode]
+      return (partner.resources[res] || 0) - take[res] >= 1
+    }
     return true
   }
 
@@ -336,16 +360,19 @@ UIInstance.prototype.openTradePopup = function () {
     var anyOverlap = false
     var giveRes = null
     var giveCount = 0
+    var giveTotal = 0
     var takeRes = null
     var takeCount = 0
+    var takeTotal = 0
     for (var i = 0; i < RESOURCE_KEYS.length; i++) {
       var r = RESOURCE_KEYS[i]
-      if (give[r] > 0) { giveCount++; giveRes = r }
-      if (take[r] > 0) { takeCount++; takeRes = r }
+      if (give[r] > 0) { giveCount++; giveRes = r; giveTotal += give[r] }
+      if (take[r] > 0) { takeCount++; takeRes = r; takeTotal += take[r] }
       if (give[r] > 0 && take[r] > 0) anyOverlap = true
     }
 
     if (anyOverlap) return false
+    if (giveTotal === 0 || takeTotal === 0) return false
 
     if (tradeMode === "bank") {
       if (giveCount !== 1 || takeCount !== 1) return false
@@ -356,7 +383,12 @@ UIInstance.prototype.openTradePopup = function () {
       return true
     }
 
-    return giveCount > 0 && takeCount > 0
+    var partner = game.players[tradeMode]
+    for (var v = 0; v < RESOURCE_KEYS.length; v++) {
+      var rv = RESOURCE_KEYS[v]
+      if (take[rv] > 0 && (partner.resources[rv] || 0) < take[rv]) return false
+    }
+    return true
   }
 
   function chipsHTML(obj, action) {
@@ -383,20 +415,34 @@ UIInstance.prototype.openTradePopup = function () {
     return html
   }
 
+  function resourcesShortHTML(obj) {
+    var parts = []
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      parts.push(RESOURCE_EMOJI[r] + (obj[r] || 0))
+    }
+    return parts.join(" ")
+  }
+
   function render() {
+    var giveResHTML = resourcesShortHTML(cp.resources)
+    var partnerObj = tradeMode === "bank" ? null : game.players[tradeMode].resources
+    var takeResHTML = partnerObj ? resourcesShortHTML(partnerObj) : ""
+
     return (
       '<div class="modal trade-modal">' +
-        '<div class="trade-header">Trade with ' + tradeMode + '</div>' +
         '<div class="trade-columns">' +
           '<div class="trade-col">' +
-            '<div class="trade-col-title">Give</div>' +
+            '<div class="trade-col-title" style="background:' + cp.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center">' + cp.name + ' <span class="trade-arrow-h">\u2192</span><span class="trade-arrow-v">\u2193</span></div>' +
             '<div class="trade-selection">' + chipsHTML(give, "remove-give") + '</div>' +
             '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-give", giveStep, canAddGive) + '</div>' +
+            '<div class="trade-resources">' + giveResHTML + '</div>' +
           '</div>' +
           '<div class="trade-col">' +
-            '<div class="trade-col-title">Take</div>' +
+            '<div class="trade-col-title" id="trade-partner-btn" style="background:' + partnerColor() + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center;cursor:pointer"><span class="trade-arrow-h">\u2190 </span><span class="trade-arrow-v">\u2191 </span>' + partnerLabel() + '</div>' +
             '<div class="trade-selection">' + chipsHTML(take, "remove-take") + '</div>' +
             '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-take", takeStep, canAddTake) + '</div>' +
+            '<div class="trade-resources">' + takeResHTML + '</div>' +
           '</div>' +
         '</div>' +
         '<div class="trade-actions">' +
@@ -415,7 +461,7 @@ UIInstance.prototype.openTradePopup = function () {
     return overlay
   }
 
-  function bind(overlay) {
+  function rebind(overlay) {
     var okBtn = document.getElementById("trade-ok")
     if (okBtn && !okBtn.disabled) {
       okBtn.addEventListener("click", function () {
@@ -429,6 +475,17 @@ UIInstance.prototype.openTradePopup = function () {
       document.body.removeChild(overlay)
     })
 
+    var partnerBtn = document.getElementById("trade-partner-btn")
+    if (partnerBtn) {
+      partnerBtn.addEventListener("click", function () {
+        tradeMode = nextPartner()
+        give = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+        take = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+        overlay.innerHTML = render()
+        rebind(overlay)
+      })
+    }
+
     var poolClicks = overlay.querySelectorAll("[data-trade-action]")
     for (var i = 0; i < poolClicks.length; i++) {
       poolClicks[i].addEventListener("click", function () {
@@ -437,26 +494,26 @@ UIInstance.prototype.openTradePopup = function () {
         if (action === "add-give") {
           give[res] += giveStep(res)
           overlay.innerHTML = render()
-          bind(overlay)
+          rebind(overlay)
         } else if (action === "remove-give") {
           give[res] = Math.max(0, give[res] - giveStep(res))
           overlay.innerHTML = render()
-          bind(overlay)
+          rebind(overlay)
         } else if (action === "add-take") {
           take[res] += takeStep()
           overlay.innerHTML = render()
-          bind(overlay)
+          rebind(overlay)
         } else if (action === "remove-take") {
           take[res] = Math.max(0, take[res] - takeStep())
           overlay.innerHTML = render()
-          bind(overlay)
+          rebind(overlay)
         }
       })
     }
   }
 
   var overlay = buildOverlay()
-  bind(overlay)
+  rebind(overlay)
 }
 
 var _homeScale = 0
@@ -801,6 +858,15 @@ UIInstance.prototype.renderActions = function () {
 
     html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
     html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
+    if (cp.rates) {
+      html += '<div style="font-size:0.8rem;margin-top:2px;text-align:center">'
+      html += RESOURCE_EMOJI.brick + cp.rates.brick + ' '
+      html += RESOURCE_EMOJI.lumber + cp.rates.lumber + ' '
+      html += RESOURCE_EMOJI.wool + cp.rates.wool + ' '
+      html += RESOURCE_EMOJI.grain + cp.rates.grain + ' '
+      html += RESOURCE_EMOJI.ore + cp.rates.ore
+      html += '</div>'
+    }
 
     if (!this._buildMode) {
       setValidPositions(null)

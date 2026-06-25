@@ -947,6 +947,11 @@ export function applyMove(state: GameState, move: GameMove): GameState {
     case "end-turn":
       return nextTurn(state)
     case "trade": {
+      const hasGive = Object.values(move.give).some(v => v > 0)
+      const hasTake = Object.values(move.take).some(v => v > 0)
+      if (!hasGive || !hasTake) {
+        throw new Error("Trade must include both give and take")
+      }
       const player = state.players[move.player]!
       for (const r in move.give) {
         const res = r as TradeResource
@@ -954,18 +959,38 @@ export function applyMove(state: GameState, move: GameMove): GameState {
           throw new Error("Not enough resources to trade")
         }
       }
-      const newRes = { ...player.resources }
+      const newPlayers = [...state.players]
+      const newCurrRes = { ...player.resources }
       for (const r in move.give) {
         const res = r as TradeResource
-        newRes[res] = (newRes[res] ?? 0) - (move.give[res] ?? 0)
+        newCurrRes[res] = (newCurrRes[res] ?? 0) - (move.give[res] ?? 0)
       }
       for (const r in move.take) {
         const res = r as TradeResource
-        newRes[res] = (newRes[res] ?? 0) + (move.take[res] ?? 0)
+        newCurrRes[res] = (newCurrRes[res] ?? 0) + (move.take[res] ?? 0)
       }
-      const newPlayers = state.players.map((p, i) =>
-        i === move.player ? { ...p, resources: newRes } : p
-      )
+      newPlayers[move.player] = { ...player, resources: newCurrRes }
+
+      if (typeof move.partner === "number") {
+        const partner = state.players[move.partner]!
+        for (const r in move.take) {
+          const res = r as TradeResource
+          if ((partner.resources[res] ?? 0) < (move.take[res] ?? 0)) {
+            throw new Error("Partner does not have enough resources")
+          }
+        }
+        const newPartnerRes = { ...partner.resources }
+        for (const r in move.take) {
+          const res = r as TradeResource
+          newPartnerRes[res] = (newPartnerRes[res] ?? 0) - (move.take[res] ?? 0)
+        }
+        for (const r in move.give) {
+          const res = r as TradeResource
+          newPartnerRes[res] = (newPartnerRes[res] ?? 0) + (move.give[res] ?? 0)
+        }
+        newPlayers[move.partner] = { ...partner, resources: newPartnerRes }
+      }
+
       return { ...state, players: newPlayers }
     }
   }

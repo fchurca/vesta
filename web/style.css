@@ -513,7 +513,7 @@ h2 {
 /* ── Trade modal ──────────────────────────────────── */
 
 .trade-modal {
-  min-width: 420px;
+  min-width: 680px;
   padding: 24px 32px;
 }
 
@@ -590,6 +590,36 @@ h2 {
   gap: 8px;
   justify-content: center;
   margin-top: 12px;
+}
+
+.trade-arrow-v {
+  display: none;
+}
+
+.trade-resources {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  text-align: center;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+@media (max-width: 500px) {
+  .trade-modal {
+    min-width: 0;
+    width: 90vw;
+    padding: 16px;
+  }
+  .trade-columns {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .trade-arrow-h {
+    display: none;
+  }
+  .trade-arrow-v {
+    display: inline;
+  }
 }
 
 /* ── Header ─────────────────────────────────────────── */
