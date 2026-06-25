@@ -1026,6 +1026,7 @@ UIInstance.prototype.onEdgeClick = function (edge) {
           if (winner >= 0) {
             game.winner = winner
             game.phase = "gameover"
+            saveGame()
             this.render()
             this.showToast(game.players[winner].name + " wins!")
           }
@@ -1155,6 +1156,7 @@ UIInstance.prototype.checkWin = function () {
   if (winner >= 0) {
     game.winner = winner
     game.phase = "gameover"
+    saveGame()
     this.render()
     this.showToast(game.players[winner].name + " wins with " + game.players[winner].vp + " VP!")
   }
