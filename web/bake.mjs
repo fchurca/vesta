@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs"
 import { resolve, dirname } from "node:path"
+import { execSync } from "node:child_process"
 
+const ROOT = resolve(import.meta.dirname, "..")
 const WEB = resolve(import.meta.dirname)
 const DIST = resolve(WEB, "dist")
 const INDEX = resolve(WEB, "index.html")
@@ -21,6 +23,8 @@ html = html.replaceAll("{{VER}}", pkg.version)
 
 const css = readFileSync(STYLE, "utf-8")
 html = html.replace('<link rel="stylesheet" href="style.css">', `<style>${css}</style>`)
+
+execSync("npm run compile", { cwd: ROOT, stdio: "inherit" })
 
 const replaceScript = (src, filePath) => {
   const content = readFileSync(filePath, "utf-8")

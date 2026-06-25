@@ -1,6 +1,6 @@
 {
   "name": "vesta",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "VESTA — Expanding Settlements Through Accord",
   "type": "module",
@@ -11,7 +11,7 @@
     "pretest": "npm run compile",
     "test": "node --test",
     "dev": "npm run compile && npx serve web",
-    "bake": "npm run compile && node web/bake.mjs"
+    "bake": "node web/bake.mjs"
   },
   "dependencies": {
     "urd": "github:fchurca/urd#semver:^0"
