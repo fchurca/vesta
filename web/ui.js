@@ -516,6 +516,69 @@ UIInstance.prototype.openTradePopup = function () {
   rebind(overlay)
 }
 
+UIInstance.prototype.openMonopolyPopup = function () {
+  var self = this
+  var cp = game.players[game.currentPlayer]
+  var totals = Game.calculateMonopolyTotals(game.currentPlayer)
+
+  var RESOURCE_KEYS = ["brick", "lumber", "wool", "grain", "ore"]
+
+  var overlay = document.createElement("div")
+  overlay.className = "modal-overlay"
+
+  function render() {
+    var html = '<div class="modal" style="text-align:center">'
+    html += '<h3 style="margin:0 0 12px">Monopoly \u2014 pick a resource</h3>'
+
+    var any = false
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      if (totals[r] > 0) {
+        any = true
+        html += '<button class="btn monopoly-option" data-monopoly-res="' + r + '" style="display:block;width:100%;margin:4px 0">' + RESOURCE_EMOJI[r] + ' ' + r + ' (' + totals[r] + ')</button>'
+      }
+    }
+
+    if (!any) {
+      html += '<p style="color:var(--text-dim)">No resources to steal</p>'
+    }
+
+    html += '<button class="btn" id="monopoly-cancel" style="margin-top:12px">Cancel</button>'
+    html += '</div>'
+    return html
+  }
+
+  overlay.innerHTML = render()
+  document.body.appendChild(overlay)
+
+  var optBtns = overlay.querySelectorAll("[data-monopoly-res]")
+  for (var i = 0; i < optBtns.length; i++) {
+    ;(function (res) {
+      optBtns[i].addEventListener("click", function () {
+        Game.playMonopolyCard(game.currentPlayer, res)
+        document.body.removeChild(overlay)
+        self.render()
+        self.checkWin()
+      })
+    })(optBtns[i].getAttribute("data-monopoly-res"))
+  }
+
+  var cancelBtn = document.getElementById("monopoly-cancel")
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", function () {
+      document.body.removeChild(overlay)
+    })
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") {
+      if (overlay.parentNode) document.body.removeChild(overlay)
+      document.removeEventListener("keydown", onKey)
+    }
+  }
+  document.addEventListener("keydown", onKey)
+}
+
 var _homeScale = 0
 function getHomeScale() {
   if (_homeScale) return _homeScale
@@ -887,7 +950,14 @@ UIInstance.prototype.renderActions = function () {
         var card = cp.hand[hi]
         var emoji = DEV_CARD_EMOJI[card.cardType] || "?"
         var available = card.available
-        var clickable = available ? ' data-dev-card-idx="' + hi + '"' : ''
+        var clickable = ""
+        if (available) {
+          if (card.cardType === "monopoly") {
+            clickable = ' data-dev-monopoly-idx="' + hi + '"'
+          } else {
+            clickable = ' data-dev-card-idx="' + hi + '"'
+          }
+        }
         var dim = available ? '' : ' style="opacity:0.4"'
         html += '<div class="dev-card"' + dim + clickable + '>' + emoji + '</div>'
       }
@@ -1025,6 +1095,13 @@ UIInstance.prototype.bindActionButtons = function () {
         }
       })
     })(parseInt(devCards[dci].getAttribute("data-dev-card-idx")))
+  }
+
+  var monopolyCards = document.querySelectorAll("[data-dev-monopoly-idx]")
+  for (var mci = 0; mci < monopolyCards.length; mci++) {
+    monopolyCards[mci].addEventListener("click", function () {
+      self.openMonopolyPopup()
+    })
   }
 
   var newGame = document.getElementById("new-game-btn")
@@ -1203,6 +1280,8 @@ UIInstance.prototype.renderLog = function () {
         return names[move.player] + " bought a development card"
       case "play-dev-card":
         return names[move.player] + " played a " + move.cardType + " card"
+      case "play-monopoly":
+        return names[move.player] + " played monopoly on " + move.resource
     }
     return ""
   }

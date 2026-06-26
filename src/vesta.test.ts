@@ -44,6 +44,8 @@ import {
   titleToSlug,
   DEV_CARD_COUNTS,
   createPoolDeck,
+  calculateMonopolyTotals,
+  playMonopolyCard,
 } from "./vesta.ts"
 
 import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard, DevDeck } from "./vesta.ts"
@@ -923,6 +925,55 @@ describe("devCards", () => {
     equal(g.players[0]!.hand.length, 0)
     equal(g.players[0]!.vp, 0)
   })
+
+  it("calculateMonopolyTotals returns empty when no other players have resources", () => {
+    const g = makeState()
+    const totals = calculateMonopolyTotals(g, 0)
+    equal(Object.keys(totals).length, 0)
+  })
+
+  it("calculateMonopolyTotals returns correct sums from other players", () => {
+    let g = makeState()
+    g.players[1]!.resources[Resource.Brick] = 3
+    g.players[2]!.resources[Resource.Wool] = 2
+    g.players[2]!.resources[Resource.Ore] = 1
+    g.players[3]!.resources[Resource.Brick] = 1
+    const totals = calculateMonopolyTotals(g, 0)
+    equal(totals.brick, 4)
+    equal(totals.wool, 2)
+    equal(totals.ore, 1)
+    equal(totals.lumber, undefined)
+  })
+
+  it("playMonopolyCard transfers resources and removes card", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "monopoly", available: true }]
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[1]!.resources[Resource.Brick] = 3
+    g.players[2]!.resources[Resource.Brick] = 2
+    g.players[3]!.resources[Resource.Brick] = 0
+    g = playMonopolyCard(g, 0, "brick")
+    equal(g.players[0]!.resources[Resource.Brick], 6)
+    equal(g.players[1]!.resources[Resource.Brick], 0)
+    equal(g.players[2]!.resources[Resource.Brick], 0)
+    equal(g.players[3]!.resources[Resource.Brick], 0)
+    equal(g.players[0]!.hand.length, 0)
+  })
+
+  it("playMonopolyCard returns state unchanged when no monopoly card in hand", () => {
+    const g = makeState()
+    g.players[1]!.resources[Resource.Brick] = 5
+    const result = playMonopolyCard(g, 0, "brick")
+    equal(result, g)
+  })
+
+  it("playMonopolyCard returns state unchanged when monopoly card is unavailable", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "monopoly", available: false }]
+    g.players[1]!.resources[Resource.Brick] = 5
+    const result = playMonopolyCard(g, 0, "brick")
+    equal(result, g)
+  })
 })
 
 describe("getValidPositions", () => {
@@ -1056,6 +1107,17 @@ describe("applyMove", () => {
     const next = applyMove(g, { type: "play-dev-card", player: 0, cardType: "victory" })
     equal(next.players[0]!.hand.length, 0)
     equal(next.players[0]!.vp, 1)
+  })
+
+  it("play-monopoly transfers resources and removes card", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "monopoly", available: true }]
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[1]!.resources[Resource.Brick] = 4
+    const next = applyMove(g, { type: "play-monopoly", player: 0, resource: "brick" })
+    equal(next.players[0]!.resources[Resource.Brick], 5)
+    equal(next.players[1]!.resources[Resource.Brick], 0)
+    equal(next.players[0]!.hand.length, 0)
   })
 })
 
@@ -1244,6 +1306,19 @@ describe("deriveLog", () => {
     const record: GameRecord = { startState: start2, turns: [turn], endState: g }
     const log = deriveLog(record)
     ok(log.some(m => m.includes("played a victory card")))
+  })
+
+  it("includes play-monopoly message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "play-monopoly", player: 0, resource: "brick" }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("played monopoly on brick")))
   })
 })
 

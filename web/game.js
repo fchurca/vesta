@@ -24,7 +24,7 @@ var RESOURCE_EMOJI = {
 
 var DEV_CARD_EMOJI = {
   victory: "\uD83E\uDE99",
-  knight: "\uD83D\uDEE1\uFE0F",
+  knight: "\uD83D\uDC82",
   "road-build": "\uD83C\uDF09",
   "year-of-plenty": "\uD83E\uDDFA",
   monopoly: "\uD83D\uDC51",
@@ -138,6 +138,49 @@ var Game = {
     var move = { type: "play-dev-card", player: playerIdx, cardType: card.cardType }
     game = applyMove(game, move)
     game.currentTurnMoves.push(move)
+    saveGame()
+  },
+
+  calculateMonopolyTotals: function (playerIdx) {
+    var totals = {}
+    for (var i = 0; i < game.players.length; i++) {
+      if (i === playerIdx) continue
+      var p = game.players[i]
+      for (var r in RESOURCE_NAMES) {
+        if (r === "desert") continue
+        totals[r] = (totals[r] || 0) + (p.resources[r] || 0)
+      }
+    }
+    var result = {}
+    for (var r in totals) {
+      if (totals[r] > 0) result[r] = totals[r]
+    }
+    return result
+  },
+
+  playMonopolyCard: function (playerIdx, resource) {
+    var total = 0
+    for (var i = 0; i < game.players.length; i++) {
+      if (i === playerIdx) continue
+      var amount = game.players[i].resources[resource] || 0
+      total += amount
+      game.players[i].resources[resource] = 0
+    }
+    game.players[playerIdx].resources[resource] = (game.players[playerIdx].resources[resource] || 0) + total
+
+    var hand = game.players[playerIdx].hand
+    for (var hi = 0; hi < hand.length; hi++) {
+      if (hand[hi].cardType === "monopoly" && hand[hi].available) {
+        hand.splice(hi, 1)
+        break
+      }
+    }
+
+    game.currentTurnMoves.push({
+      type: "play-monopoly",
+      player: playerIdx,
+      resource: resource,
+    })
     saveGame()
   },
 

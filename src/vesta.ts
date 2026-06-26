@@ -123,6 +123,7 @@ export type GameMove =
   | { type: "trade"; player: number; partner: "bank" | number; give: Record<TradeResource, number>; take: Record<TradeResource, number> }
   | { type: "buy-dev-card"; player: number }
   | { type: "play-dev-card"; player: number; cardType: string }
+  | { type: "play-monopoly"; player: number; resource: TradeResource }
 
 export interface GameTurn {
   turn: number
@@ -862,6 +863,47 @@ export function computeRates(state: GameState, playerIdx: number): Record<TradeR
   return rates as Record<TradeResource, number>
 }
 
+export function calculateMonopolyTotals(state: GameState, playerIdx: number): Partial<Record<TradeResource, number>> {
+  const totals: Record<string, number> = {}
+  for (let i = 0; i < state.players.length; i++) {
+    if (i === playerIdx) continue
+    const p = state.players[i]!
+    for (const r of Object.values(TradeResource) as TradeResource[]) {
+      totals[r] = (totals[r] ?? 0) + (p.resources[r as Resource] ?? 0)
+    }
+  }
+  const result: Partial<Record<TradeResource, number>> = {}
+  for (const [r, count] of Object.entries(totals)) {
+    if (count > 0) result[r as TradeResource] = count
+  }
+  return result
+}
+
+export function playMonopolyCard(state: GameState, playerIdx: number, resource: TradeResource): GameState {
+  const p = state.players[playerIdx]!
+  const idx = p.hand.findIndex(c => c.cardType === "monopoly" && c.available)
+  if (idx === -1) return state
+
+  const res = resource as Resource
+  let stolen = 0
+
+  const newPlayers = state.players.map((pl, i) => {
+    if (i === playerIdx) return pl
+    const amount = pl.resources[res] ?? 0
+    stolen += amount
+    return { ...pl, resources: { ...pl.resources, [res]: 0 } }
+  })
+
+  const cp = newPlayers[playerIdx]!
+  newPlayers[playerIdx] = {
+    ...cp,
+    resources: { ...cp.resources, [res]: (cp.resources[res] ?? 0) + stolen },
+    hand: cp.hand.filter((_, i) => i !== idx),
+  }
+
+  return { ...state, players: newPlayers }
+}
+
 export function canBuyDevCard(state: GameState, playerIdx: number): boolean {
   const p = state.players[playerIdx]!
   return (
@@ -1110,6 +1152,9 @@ export function applyMove(state: GameState, move: GameMove): GameState {
     case "play-dev-card": {
       return playDevCard(state, move.player, move.cardType)
     }
+    case "play-monopoly": {
+      return playMonopolyCard(state, move.player, move.resource)
+    }
   }
 }
 
@@ -1171,6 +1216,9 @@ export function deriveLog(record: GameRecord): string[] {
           break
         case "play-dev-card":
           out.push(names[move.player] + " played a " + move.cardType + " card")
+          break
+        case "play-monopoly":
+          out.push(names[move.player] + " played monopoly on " + move.resource)
           break
       }
     }
