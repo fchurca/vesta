@@ -45,6 +45,33 @@ export interface DevCard {
   available: boolean
 }
 
+export interface DevDeck {
+  readonly type: string
+  remaining: number
+  cards: DevCard[]
+}
+
+export const DEV_CARD_COUNTS: Record<string, number> = {
+  victory: 5,
+  knight: 14,
+  "road-build": 2,
+  "year-of-plenty": 2,
+  monopoly: 2,
+}
+
+export function createPoolDeck(seed: number): DevDeck {
+  const flat: string[] = []
+  for (const [type, count] of Object.entries(DEV_CARD_COUNTS)) {
+    for (let i = 0; i < count; i++) flat.push(type)
+  }
+  const shuffled = seededShuffle(flat, seed + 99)
+  return {
+    type: "pool",
+    remaining: shuffled.length,
+    cards: shuffled.map(t => ({ cardType: t, available: false })),
+  }
+}
+
 export interface RoadData {
   key: string
   q1: number
@@ -66,6 +93,7 @@ export interface Player {
   roadCount: number
   rates: Record<TradeResource, number>
   hand: DevCard[]
+  knights: number
 }
 
 export type GamePhase = "initial_first" | "initial_second" | "play" | "gameover"
@@ -80,6 +108,7 @@ export interface GameState {
   setupStep: SetupStep
   pendingSettlement: { q: number; r: number; corner: number } | null
   board: Board
+  devDeck: DevDeck
   players: Player[]
   winner: number | null
   title: string
@@ -222,8 +251,6 @@ const PORT_EDGES: [PortVertex, PortVertex][] = [
 ]
 
 const HEX_DIRECTIONS: [number, number][] = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]]
-
-const DEV_CARD_TYPES: string[] = ["victory"]
 
 const PORT_RESOURCE_DIST: (Resource | null)[] = [
   null, null, null, null,
@@ -845,6 +872,7 @@ export function canBuyDevCard(state: GameState, playerIdx: number): boolean {
 }
 
 export function buyDevCard(state: GameState, playerIdx: number): GameState {
+  if (state.devDeck.cards.length === 0) return state
   const p = state.players[playerIdx]!
   const cost = BUILDING_COST.development!
   const newRes = { ...p.resources }
@@ -852,13 +880,18 @@ export function buyDevCard(state: GameState, playerIdx: number): GameState {
     const res = r as Resource
     newRes[res] = (newRes[res] ?? 0) - cost[res]!
   }
-  const cardType = seededShuffle(DEV_CARD_TYPES, state.turn + playerIdx + 99)[0]!
+  const card = state.devDeck.cards[0]!
+  const newDeck: DevDeck = {
+    ...state.devDeck,
+    cards: state.devDeck.cards.slice(1),
+    remaining: state.devDeck.remaining - 1,
+  }
   const newPlayers = state.players.map((pl, i) =>
     i === playerIdx
-      ? { ...pl, resources: newRes, hand: [...pl.hand, { cardType, available: false }] }
+      ? { ...pl, resources: newRes, hand: [...pl.hand, { cardType: card.cardType, available: false }] }
       : pl
   )
-  return { ...state, players: newPlayers }
+  return { ...state, devDeck: newDeck, players: newPlayers }
 }
 
 export function playDevCard(state: GameState, playerIdx: number, cardType: string): GameState {
@@ -871,9 +904,11 @@ export function playDevCard(state: GameState, playerIdx: number, cardType: strin
     newVp += 1
   }
 
+  const newKnights = cardType === "knight" ? p.knights + 1 : p.knights
+
   const newHand = p.hand.filter((_, i) => i !== idx)
   const newPlayers = state.players.map((pl, i) =>
-    i === playerIdx ? { ...pl, hand: newHand, vp: newVp } : pl
+    i === playerIdx ? { ...pl, hand: newHand, vp: newVp, knights: newKnights } : pl
   )
   return { ...state, players: newPlayers }
 }
@@ -985,7 +1020,9 @@ export function createGame(opts: GameOptions): GameState {
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
       hand: [],
+      knights: 0,
     })),
+    devDeck: createPoolDeck(opts.roll),
     winner: null,
     title: truncateText(opts.title ?? "", 64, 32),
   }

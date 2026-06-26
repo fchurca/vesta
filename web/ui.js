@@ -840,6 +840,19 @@ UIInstance.prototype.renderActions = function () {
 
     html += playerCompactHTML(game.currentPlayer)
 
+    html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
+    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
+    if (cp.rates) {
+      html += '<div style="font-size:0.8rem;margin-top:2px;text-align:center">'
+      html += '⚖: '
+      html += RESOURCE_EMOJI.brick + cp.rates.brick + ' '
+      html += RESOURCE_EMOJI.lumber + cp.rates.lumber + ' '
+      html += RESOURCE_EMOJI.wool + cp.rates.wool + ' '
+      html += RESOURCE_EMOJI.grain + cp.rates.grain + ' '
+      html += RESOURCE_EMOJI.ore + cp.rates.ore
+      html += '</div>'
+    }
+
     html += '<div class="phase-label" style="margin-top:4px">🔨Build</div>'
     html += '<div class="btn-row">'
     var cp = game.players[game.currentPlayer]
@@ -857,14 +870,15 @@ UIInstance.prototype.renderActions = function () {
       html += '<div id="build-status">' + (msgs[this._buildMode] || "") + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
     }
 
-    html += '<div class="phase-label" style="margin-top:4px">📜Dev Cards</div>'
+    html += '<div class="phase-label" style="margin-top:4px">📜Dev Cards: ' + game.devDeck.remaining + ' left</div>'
     html += '<div class="btn-row">'
     var devCanAfford = true
     var devCost = BUILDING_COST.development
     for (var dr in devCost) { if ((cp.resources[dr] || 0) < devCost[dr]) { devCanAfford = false; break } }
     var devCostStr = ""
     for (var dr2 in devCost) { for (var di = 0; di < devCost[dr2]; di++) devCostStr += RESOURCE_EMOJI[dr2] }
-    html += '<button class="btn" id="buy-dev-card"' + (devCanAfford ? '' : ' disabled') + ' title="Buy development card">\uD83C\uDCCF' + devCostStr + '</button>'
+    var deckEmpty = game.devDeck.remaining === 0
+    html += '<button class="btn" id="buy-dev-card"' + (devCanAfford && !deckEmpty ? '' : ' disabled') + ' title="Buy development card">\uD83C\uDCCF' + devCostStr + '</button>'
     html += '</div>'
 
     if (cp.hand && cp.hand.length > 0) {
@@ -877,18 +891,6 @@ UIInstance.prototype.renderActions = function () {
         var dim = available ? '' : ' style="opacity:0.4"'
         html += '<div class="dev-card"' + dim + clickable + '>' + emoji + '</div>'
       }
-      html += '</div>'
-    }
-
-    html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
-    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
-    if (cp.rates) {
-      html += '<div style="font-size:0.8rem;margin-top:2px;text-align:center">'
-      html += RESOURCE_EMOJI.brick + cp.rates.brick + ' '
-      html += RESOURCE_EMOJI.lumber + cp.rates.lumber + ' '
-      html += RESOURCE_EMOJI.wool + cp.rates.wool + ' '
-      html += RESOURCE_EMOJI.grain + cp.rates.grain + ' '
-      html += RESOURCE_EMOJI.ore + cp.rates.ore
       html += '</div>'
     }
 

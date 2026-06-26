@@ -42,9 +42,11 @@ import {
   deriveLog,
   truncateText,
   titleToSlug,
+  DEV_CARD_COUNTS,
+  createPoolDeck,
 } from "./vesta.ts"
 
-import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard } from "./vesta.ts"
+import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard, DevDeck } from "./vesta.ts"
 
 const makeState = () => createGame({ players: 4, roll: 42 })
 
@@ -264,6 +266,7 @@ describe("hasResources", () => {
     roadCount: 0,
     rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
     hand: [],
+    knights: 0,
   })
 
   it("returns true when player has enough resources", () => {
@@ -292,6 +295,7 @@ describe("deductResources", () => {
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
       hand: [],
+      knights: 0,
     }
     const result = deductResources(p, { [Resource.Brick]: 1, [Resource.Lumber]: 2 })
     equal(result.resources[Resource.Brick], 4)
@@ -310,6 +314,7 @@ describe("deductResources", () => {
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
       hand: [],
+      knights: 0,
     }
     deductResources(p, { [Resource.Brick]: 1 })
     equal(p.resources[Resource.Brick], 5)
@@ -806,7 +811,30 @@ describe("computeRates", () => {
   })
 })
 
+describe("DEV_CARD_COUNTS", () => {
+  it("totals 25 cards", () => {
+    const total = Object.values(DEV_CARD_COUNTS).reduce((a, b) => a + b, 0)
+    equal(total, 25)
+  })
+})
+
+describe("createPoolDeck", () => {
+  it("produces 25 cards with pool type", () => {
+    const deck = createPoolDeck(42)
+    equal(deck.remaining, 25)
+    equal(deck.cards.length, 25)
+    equal(deck.type, "pool")
+  })
+})
+
 describe("devCards", () => {
+  it("createGame starts with a full deck of 25", () => {
+    const g = makeState()
+    equal(g.devDeck.remaining, 25)
+    equal(g.devDeck.cards.length, 25)
+    equal(g.devDeck.type, "pool")
+  })
+
   it("canBuyDevCard returns false when player has no resources", () => {
     const g = makeState()
     equal(canBuyDevCard(g, 0), false)
@@ -820,15 +848,16 @@ describe("devCards", () => {
     equal(canBuyDevCard(g, 0), true)
   })
 
-  it("buyDevCard adds a card to hand as unavailable", () => {
+  it("buyDevCard adds a card to hand as unavailable and reduces deck", () => {
     let g = makeState()
     g.players[0]!.resources[Resource.Ore] = 1
     g.players[0]!.resources[Resource.Wool] = 1
     g.players[0]!.resources[Resource.Grain] = 1
+    const before = g.devDeck.remaining
     g = buyDevCard(g, 0)
     equal(g.players[0]!.hand.length, 1)
-    equal(g.players[0]!.hand[0]!.cardType, "victory")
     equal(g.players[0]!.hand[0]!.available, false)
+    equal(g.devDeck.remaining, before - 1)
   })
 
   it("buyDevCard deducts resources", () => {
@@ -842,12 +871,42 @@ describe("devCards", () => {
     equal(g.players[0]!.resources[Resource.Grain], 0)
   })
 
+  it("buyDevCard returns state unchanged when deck is empty", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Ore] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    g = { ...g, devDeck: { ...g.devDeck, cards: [], remaining: 0 } }
+    const result = buyDevCard(g, 0)
+    equal(result.players[0]!.hand.length, 0)
+    equal(result.devDeck.remaining, 0)
+  })
+
   it("playDevCard removes the card and grants VP", () => {
     let g = makeState()
     g.players[0]!.hand = [{ cardType: "victory", available: true }]
     g = playDevCard(g, 0, "victory")
     equal(g.players[0]!.hand.length, 0)
     equal(g.players[0]!.vp, 1)
+  })
+
+  it("playDevCard knight increments knights counter", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "knight", available: true }]
+    equal(g.players[0]!.knights, 0)
+    g = playDevCard(g, 0, "knight")
+    equal(g.players[0]!.hand.length, 0)
+    equal(g.players[0]!.knights, 1)
+    equal(g.players[0]!.vp, 0)
+  })
+
+  it("playDevCard road-build removes card with no other effect", () => {
+    let g = makeState()
+    g.players[0]!.vp = 5
+    g.players[0]!.hand = [{ cardType: "road-build", available: true }]
+    g = playDevCard(g, 0, "road-build")
+    equal(g.players[0]!.hand.length, 0)
+    equal(g.players[0]!.vp, 5)
   })
 
   it("playDevCard refuses unavailable card", () => {

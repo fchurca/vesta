@@ -24,6 +24,10 @@ var RESOURCE_EMOJI = {
 
 var DEV_CARD_EMOJI = {
   victory: "\uD83E\uDE99",
+  knight: "\uD83D\uDEE1\uFE0F",
+  "road-build": "\uD83C\uDF09",
+  "year-of-plenty": "\uD83E\uDDFA",
+  monopoly: "\uD83D\uDC51",
 }
 
 var RESOURCE_COLORS = {
