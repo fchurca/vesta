@@ -124,6 +124,7 @@ export type GameMove =
   | { type: "buy-dev-card"; player: number }
   | { type: "play-dev-card"; player: number; cardType: string }
   | { type: "play-monopoly"; player: number; resource: TradeResource }
+  | { type: "play-year-of-plenty"; player: number; resources: [TradeResource, TradeResource] }
 
 export interface GameTurn {
   turn: number
@@ -904,6 +905,22 @@ export function playMonopolyCard(state: GameState, playerIdx: number, resource: 
   return { ...state, players: newPlayers }
 }
 
+export function playYearOfPlentyCard(state: GameState, playerIdx: number, resources: [TradeResource, TradeResource]): GameState {
+  const p = state.players[playerIdx]!
+  const idx = p.hand.findIndex(c => c.cardType === "year-of-plenty" && c.available)
+  if (idx === -1) return state
+
+  const newRes = { ...p.resources }
+  for (const r of resources) {
+    newRes[r as Resource] = (newRes[r as Resource] ?? 0) + 1
+  }
+  const newHand = p.hand.filter((_, i) => i !== idx)
+  const newPlayers = state.players.map((pl, i) =>
+    i === playerIdx ? { ...pl, resources: newRes, hand: newHand } : pl
+  )
+  return { ...state, players: newPlayers }
+}
+
 export function canBuyDevCard(state: GameState, playerIdx: number): boolean {
   const p = state.players[playerIdx]!
   return (
@@ -1155,6 +1172,9 @@ export function applyMove(state: GameState, move: GameMove): GameState {
     case "play-monopoly": {
       return playMonopolyCard(state, move.player, move.resource)
     }
+    case "play-year-of-plenty": {
+      return playYearOfPlentyCard(state, move.player, move.resources)
+    }
   }
 }
 
@@ -1219,6 +1239,9 @@ export function deriveLog(record: GameRecord): string[] {
           break
         case "play-monopoly":
           out.push(names[move.player] + " played monopoly on " + move.resource)
+          break
+        case "play-year-of-plenty":
+          out.push(names[move.player] + " played year of plenty")
           break
       }
     }

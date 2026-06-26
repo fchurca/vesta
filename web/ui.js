@@ -579,6 +579,104 @@ UIInstance.prototype.openMonopolyPopup = function () {
   document.addEventListener("keydown", onKey)
 }
 
+UIInstance.prototype.openYearOfPlentyPopup = function () {
+  var self = this
+  var RESOURCE_KEYS = ["brick", "lumber", "wool", "grain", "ore"]
+  var selected = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+  var total = 0
+
+  function chipsHTML() {
+    var html = ""
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      for (var c = 0; c < selected[r]; c++) {
+        html += '<span class="trade-chip" data-yop-action="remove" data-yop-res="' + r + '">' + RESOURCE_EMOJI[r] + '</span>'
+      }
+    }
+    if (!html) html = '<span style="color:var(--text-dim);font-size:0.85rem">\u2014</span>'
+    return html
+  }
+
+  function poolHTML() {
+    var html = ""
+    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+      var r = RESOURCE_KEYS[i]
+      var disabled = total >= 2 ? ' style="opacity:0.35;cursor:default"' : ''
+      html += '<span class="trade-pool-item"' + disabled + ' data-yop-action="add" data-yop-res="' + r + '">' + RESOURCE_EMOJI[r] + '</span>'
+    }
+    return html
+  }
+
+  function render() {
+    return (
+      '<div class="modal" style="text-align:center">' +
+        '<h3 style="margin:0 0 12px">Year of Plenty \u2014 pick 2 resources</h3>' +
+        '<div class="trade-selection">' + chipsHTML() + '</div>' +
+        '<div class="trade-pool">' + poolHTML() + '</div>' +
+        '<div style="font-size:0.85rem;color:var(--text-dim);margin:4px 0">' + total + '/2 selected</div>' +
+        '<div class="trade-actions">' +
+          '<button class="btn btn-primary" id="yop-ok"' + (total === 2 ? '' : ' disabled') + '>OK</button>' +
+          '<button class="btn" id="yop-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>'
+    )
+  }
+
+  var overlay = document.createElement("div")
+  overlay.className = "modal-overlay"
+  overlay.innerHTML = render()
+  document.body.appendChild(overlay)
+
+  function rebind() {
+    var okBtn = document.getElementById("yop-ok")
+    if (okBtn && !okBtn.disabled) {
+      okBtn.addEventListener("click", function () {
+        var resources = []
+        for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+          var r = RESOURCE_KEYS[i]
+          for (var c = 0; c < selected[r]; c++) resources.push(r)
+        }
+        Game.playYearOfPlentyCard(game.currentPlayer, resources[0], resources[1])
+        document.body.removeChild(overlay)
+        self.render()
+      })
+    }
+
+    document.getElementById("yop-cancel").addEventListener("click", function () {
+      document.body.removeChild(overlay)
+    })
+
+    var items = overlay.querySelectorAll("[data-yop-action]")
+    for (var i = 0; i < items.length; i++) {
+      items[i].addEventListener("click", function () {
+        var action = this.getAttribute("data-yop-action")
+        var res = this.getAttribute("data-yop-res")
+        if (action === "add" && total < 2) {
+          selected[res]++
+          total++
+          overlay.innerHTML = render()
+          rebind()
+        } else if (action === "remove") {
+          selected[res] = Math.max(0, selected[res] - 1)
+          total--
+          overlay.innerHTML = render()
+          rebind()
+        }
+      })
+    }
+  }
+
+  rebind()
+
+  function onKey(e) {
+    if (e.key === "Escape") {
+      if (overlay.parentNode) document.body.removeChild(overlay)
+      document.removeEventListener("keydown", onKey)
+    }
+  }
+  document.addEventListener("keydown", onKey)
+}
+
 var _homeScale = 0
 function getHomeScale() {
   if (_homeScale) return _homeScale
@@ -954,6 +1052,8 @@ UIInstance.prototype.renderActions = function () {
         if (available) {
           if (card.cardType === "monopoly") {
             clickable = ' data-dev-monopoly-idx="' + hi + '"'
+          } else if (card.cardType === "year-of-plenty") {
+            clickable = ' data-dev-yop-idx="' + hi + '"'
           } else {
             clickable = ' data-dev-card-idx="' + hi + '"'
           }
@@ -1101,6 +1201,13 @@ UIInstance.prototype.bindActionButtons = function () {
   for (var mci = 0; mci < monopolyCards.length; mci++) {
     monopolyCards[mci].addEventListener("click", function () {
       self.openMonopolyPopup()
+    })
+  }
+
+  var yopCards = document.querySelectorAll("[data-dev-yop-idx]")
+  for (var yci = 0; yci < yopCards.length; yci++) {
+    yopCards[yci].addEventListener("click", function () {
+      self.openYearOfPlentyPopup()
     })
   }
 
@@ -1282,6 +1389,8 @@ UIInstance.prototype.renderLog = function () {
         return names[move.player] + " played a " + move.cardType + " card"
       case "play-monopoly":
         return names[move.player] + " played monopoly on " + move.resource
+      case "play-year-of-plenty":
+        return names[move.player] + " played year of plenty"
     }
     return ""
   }

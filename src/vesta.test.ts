@@ -46,6 +46,7 @@ import {
   createPoolDeck,
   calculateMonopolyTotals,
   playMonopolyCard,
+  playYearOfPlentyCard,
 } from "./vesta.ts"
 
 import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard, DevDeck } from "./vesta.ts"
@@ -974,6 +975,38 @@ describe("devCards", () => {
     const result = playMonopolyCard(g, 0, "brick")
     equal(result, g)
   })
+
+  it("playYearOfPlentyCard gives two different resources", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "year-of-plenty", available: true }]
+    g.players[0]!.resources[Resource.Brick] = 1
+    g = playYearOfPlentyCard(g, 0, ["brick", "lumber"])
+    equal(g.players[0]!.resources[Resource.Brick], 2)
+    equal(g.players[0]!.resources[Resource.Lumber], 1)
+    equal(g.players[0]!.hand.length, 0)
+  })
+
+  it("playYearOfPlentyCard gives two of the same resource", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "year-of-plenty", available: true }]
+    g.players[0]!.resources[Resource.Brick] = 1
+    g = playYearOfPlentyCard(g, 0, ["brick", "brick"])
+    equal(g.players[0]!.resources[Resource.Brick], 3)
+    equal(g.players[0]!.hand.length, 0)
+  })
+
+  it("playYearOfPlentyCard returns state unchanged when no card in hand", () => {
+    const g = makeState()
+    const result = playYearOfPlentyCard(g, 0, ["brick", "lumber"])
+    equal(result, g)
+  })
+
+  it("playYearOfPlentyCard returns state unchanged when card is unavailable", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "year-of-plenty", available: false }]
+    const result = playYearOfPlentyCard(g, 0, ["brick", "lumber"])
+    equal(result, g)
+  })
 })
 
 describe("getValidPositions", () => {
@@ -1117,6 +1150,16 @@ describe("applyMove", () => {
     const next = applyMove(g, { type: "play-monopoly", player: 0, resource: "brick" })
     equal(next.players[0]!.resources[Resource.Brick], 5)
     equal(next.players[1]!.resources[Resource.Brick], 0)
+    equal(next.players[0]!.hand.length, 0)
+  })
+
+  it("play-year-of-plenty adds resources and removes card", () => {
+    let g = makeState()
+    g.players[0]!.hand = [{ cardType: "year-of-plenty", available: true }]
+    g.players[0]!.resources[Resource.Brick] = 1
+    const next = applyMove(g, { type: "play-year-of-plenty", player: 0, resources: ["brick", "ore"] })
+    equal(next.players[0]!.resources[Resource.Brick], 2)
+    equal(next.players[0]!.resources[Resource.Ore], 1)
     equal(next.players[0]!.hand.length, 0)
   })
 })
@@ -1319,6 +1362,19 @@ describe("deriveLog", () => {
     const record: GameRecord = { startState: start2, turns: [turn], endState: g }
     const log = deriveLog(record)
     ok(log.some(m => m.includes("played monopoly on brick")))
+  })
+
+  it("includes play-year-of-plenty message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "play-year-of-plenty", player: 0, resources: ["brick", "lumber"] }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("played year of plenty")))
   })
 })
 

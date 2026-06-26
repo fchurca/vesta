@@ -184,6 +184,25 @@ var Game = {
     saveGame()
   },
 
+  playYearOfPlentyCard: function (playerIdx, r1, r2) {
+    var hand = game.players[playerIdx].hand
+    for (var hi = 0; hi < hand.length; hi++) {
+      if (hand[hi].cardType === "year-of-plenty" && hand[hi].available) {
+        hand.splice(hi, 1)
+        break
+      }
+    }
+    game.players[playerIdx].resources[r1] = (game.players[playerIdx].resources[r1] || 0) + 1
+    game.players[playerIdx].resources[r2] = (game.players[playerIdx].resources[r2] || 0) + 1
+
+    game.currentTurnMoves.push({
+      type: "play-year-of-plenty",
+      player: playerIdx,
+      resources: [r1, r2],
+    })
+    saveGame()
+  },
+
   nextTurn: function () {
     game.currentTurnMoves.push({ type: "end-turn", player: game.currentPlayer })
     var prevPhase = game.phase
