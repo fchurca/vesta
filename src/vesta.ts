@@ -200,6 +200,10 @@ export const BUILDING_COST: Record<string, Partial<Record<Resource, number>>> = 
   development: { [Resource.Ore]: 1, [Resource.Wool]: 1, [Resource.Grain]: 1 },
 }
 
+export const MAX_ROADS = 15
+export const MAX_SETTLEMENTS = 5
+export const MAX_CITIES = 4
+
 type PortVertex = { q: number; r: number; corner: number }
 
 const PORT_EDGES: [PortVertex, PortVertex][] = [
@@ -484,8 +488,11 @@ export function canBuildSettlement(
   if (!checkDistanceRule(state, vKey)) return { ok: false, reason: "Too close to another settlement" }
 
   if (!isInitial) {
+    const player = state.players[playerIdx]!
+    if (player.settlements.length >= MAX_SETTLEMENTS) return { ok: false, reason: "Maximum settlements reached" }
+
     const cost = BUILDING_COST.settlement!
-    if (!hasResources(state.players[playerIdx]!, cost)) return { ok: false, reason: "Not enough resources" }
+    if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }
 
     if (!hasAdjacentRoad(state, playerIdx, vKey)) return { ok: false, reason: "No adjacent road" }
   }
@@ -515,8 +522,11 @@ export function canBuildRoad(
   }
 
   if (!isInitial) {
+    const player = state.players[playerIdx]!
+    if (player.roadCount >= MAX_ROADS) return { ok: false, reason: "Maximum roads reached" }
+
     const cost = BUILDING_COST.road!
-    if (!hasResources(state.players[playerIdx]!, cost)) return { ok: false, reason: "Not enough resources" }
+    if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }
 
     if (!edgeConnectedToPlayer(state, playerIdx, eKey)) {
       return { ok: false, reason: "No adjacent settlement or road" }
@@ -542,6 +552,8 @@ export function canBuildCity(
     if (vertexKey(s.q, s.r, s.corner) === vKey) { found = true; break }
   }
   if (!found) return { ok: false, reason: "No settlement here" }
+
+  if (player.cities.length >= MAX_CITIES) return { ok: false, reason: "Maximum cities reached" }
 
   const cost = BUILDING_COST.city!
   if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }

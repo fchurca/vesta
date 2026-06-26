@@ -842,9 +842,10 @@ UIInstance.prototype.renderActions = function () {
 
     html += '<div class="phase-label" style="margin-top:4px">🔨Build</div>'
     html += '<div class="btn-row">'
-    html += buildBtn("🌉", BUILDING_COST.road, "build-road", "road", "Build road")
-    html += buildBtn("🛖", BUILDING_COST.settlement, "build-settlement", "settlement", "Build settlement")
-    html += buildBtn("🏰", BUILDING_COST.city, "build-city", "city", "Build city")
+    var cp = game.players[game.currentPlayer]
+    html += buildBtn("🌉", BUILDING_COST.road, "build-road", "road", "Build road", { built: cp.roadCount, max: 15 })
+    html += buildBtn("🛖", BUILDING_COST.settlement, "build-settlement", "settlement", "Build settlement", { built: cp.settlements.length, max: 5 })
+    html += buildBtn("🏰", BUILDING_COST.city, "build-city", "city", "Build city", { built: cp.cities.length, max: 4 })
     html += '</div>'
 
     if (this._buildMode) {
@@ -908,7 +909,7 @@ UIInstance.prototype.renderActions = function () {
   this.bindActionButtons()
 }
 
-function buildBtn(emoji, cost, id, mode, title) {
+function buildBtn(emoji, cost, id, mode, title, counts) {
   var cp2 = game.players[game.currentPlayer]
   var canAfford = true
   for (var r in cost) {
@@ -921,13 +922,15 @@ function buildBtn(emoji, cost, id, mode, title) {
     canPlace = positions.length > 0
   }
 
-  var disabled = (!canAfford || !canPlace || !game.rolled)
+  var atLimit = counts && counts.built >= counts.max
+  var disabled = (!canAfford || !canPlace || !game.rolled || atLimit)
 
   var costStr = ""
   for (var r2 in cost) {
     for (var i = 0; i < cost[r2]; i++) costStr += RESOURCE_EMOJI[r2]
   }
 
+  if (counts) costStr += " (" + counts.built + "/" + counts.max + ")"
   return '<button class="btn" id="' + id + '"' + (disabled ? " disabled" : "") + ' title="' + title + '">' + emoji + '🔨' + costStr + '</button>'
 }
 

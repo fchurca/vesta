@@ -30,6 +30,9 @@ import {
   getValidPositions,
   tileAt,
   BUILDING_COST,
+  MAX_ROADS,
+  MAX_SETTLEMENTS,
+  MAX_CITIES,
   BOARD_HEXES,
   resetCache,
   Resource,
@@ -260,6 +263,7 @@ describe("hasResources", () => {
     vp: 0,
     roadCount: 0,
     rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
+    hand: [],
   })
 
   it("returns true when player has enough resources", () => {
@@ -287,6 +291,7 @@ describe("deductResources", () => {
       vp: 0,
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
+      hand: [],
     }
     const result = deductResources(p, { [Resource.Brick]: 1, [Resource.Lumber]: 2 })
     equal(result.resources[Resource.Brick], 4)
@@ -304,6 +309,7 @@ describe("deductResources", () => {
       vp: 0,
       roadCount: 0,
       rates: { brick: 4, lumber: 4, wool: 4, grain: 4, ore: 4 },
+      hand: [],
     }
     deductResources(p, { [Resource.Brick]: 1 })
     equal(p.resources[Resource.Brick], 5)
@@ -418,6 +424,21 @@ describe("canBuildSettlement", () => {
     const result = canBuildSettlement(g, 0, 0, 0, 1, false)
     ok(result.ok)
   })
+
+  it("rejects regular placement when max settlements reached", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    for (let i = 0; i < MAX_SETTLEMENTS; i++) {
+      g.players[0]!.settlements.push({ q: i * 10, r: 0, corner: 0 })
+    }
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[0]!.resources[Resource.Lumber] = 1
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    const result = canBuildSettlement(g, 0, 50, 0, 0, false)
+    ok(!result.ok)
+    equal(result.reason, "Maximum settlements reached")
+  })
 })
 
 describe("canBuildRoad", () => {
@@ -436,6 +457,19 @@ describe("canBuildRoad", () => {
     const result = canBuildRoad(g, 0, 1, 0, 0, 1, 0, 1, true, ps)
     ok(!result.ok)
     equal(result.reason, "Road must connect to placed settlement")
+  })
+
+  it("rejects regular placement when max roads reached", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[0]!.resources[Resource.Lumber] = 1
+    g.players[0]!.roadCount = MAX_ROADS
+    const result = canBuildRoad(g, 0, 0, 0, 1, 0, 0, 2, false, null)
+    ok(!result.ok)
+    equal(result.reason, "Maximum roads reached")
   })
 })
 
@@ -462,6 +496,17 @@ describe("canBuildCity", () => {
     g.players[0]!.resources[Resource.Ore] = 3
     const result = canBuildCity(g, 0, 0, 0, 0)
     ok(result.ok)
+  })
+
+  it("rejects city when max cities reached", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g.players[0]!.resources[Resource.Grain] = 2
+    g.players[0]!.resources[Resource.Ore] = 3
+    g.players[0]!.cities = Array.from({ length: MAX_CITIES }, (_, i) => ({ q: i * 10, r: 0, corner: 0 }))
+    const result = canBuildCity(g, 0, 0, 0, 0)
+    ok(!result.ok)
+    equal(result.reason, "Maximum cities reached")
   })
 })
 
@@ -527,6 +572,22 @@ describe("placeCity", () => {
     equal(g.players[0]!.settlements.length, 0)
     equal(g.players[0]!.cities.length, 1)
     equal(g.players[0]!.vp, 2)
+  })
+
+  it("frees a settlement slot for reuse after upgrade", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g.players[0]!.resources[Resource.Grain] = 2
+    g.players[0]!.resources[Resource.Ore] = 3
+    g = placeCity(g, 0, 0, 0, 0)
+    g = { ...g, phase: "play" }
+    g.players[0]!.resources[Resource.Brick] = 2
+    g.players[0]!.resources[Resource.Lumber] = 2
+    g.players[0]!.resources[Resource.Wool] = 1
+    g.players[0]!.resources[Resource.Grain] = 1
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    const result = canBuildSettlement(g, 0, 0, 0, 2, false)
+    ok(result.ok)
   })
 
 })
