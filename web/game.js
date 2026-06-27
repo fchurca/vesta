@@ -219,6 +219,42 @@ var Game = {
     saveGame()
   },
 
+  moveRobber: function (playerIdx, q, r) {
+    game = moveRobber(game, q, r)
+    game.currentTurnMoves.push({ type: "move-robber", player: playerIdx, q: q, r: r })
+    saveGame()
+  },
+
+  getRobbableVertices: function (tileQ, tileR) {
+    return getRobbableVertices(game, game.currentPlayer, tileQ, tileR)
+  },
+
+  robRandomResource: function (playerIdx, victimIdx) {
+    var available = []
+    var victim = game.players[victimIdx]
+    for (var r in RESOURCE_NAMES) {
+      if (r === "desert") continue
+      if (victim.resources[r] > 0) available.push(r)
+    }
+    if (available.length === 0) return false
+    var picked = available[Math.floor(Math.random() * available.length)]
+    game = robResource(game, playerIdx, victimIdx, picked)
+    game.currentTurnMoves.push({ type: "steal-resource", player: playerIdx, victim: victimIdx, resource: picked })
+    saveGame()
+    return true
+  },
+
+  getValidGuardTiles: function () {
+    var robber = game.board.robber
+    var result = []
+    for (var ti = 0; ti < game.board.tiles.length; ti++) {
+      var t = game.board.tiles[ti]
+      if (t.coord.q === robber.q && t.coord.r === robber.r) continue
+      result.push({ type: "tile", q: t.coord.q, r: t.coord.r })
+    }
+    return result
+  },
+
   nextTurn: function () {
     game.currentTurnMoves.push({ type: "end-turn", player: game.currentPlayer })
     var prevPhase = game.phase
@@ -286,6 +322,13 @@ var Game = {
             result.push({ type: "edge", key: ek2, edge: e2 })
           }
         }
+      }
+    } else if (mode === "guard-tile") {
+      var robber = game.board.robber
+      for (var ti = 0; ti < game.board.tiles.length; ti++) {
+        var t = game.board.tiles[ti]
+        if (t.coord.q === robber.q && t.coord.r === robber.r) continue
+        result.push({ type: "tile", q: t.coord.q, r: t.coord.r })
       }
     }
 

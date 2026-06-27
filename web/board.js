@@ -48,6 +48,7 @@ var _canvas = null
 var _ctx = null
 var _hoverVertex = null
 var _hoverEdge = null
+var _hoverTile = null
 var _allVertices = null
 var _allEdges = null
 var _validPositions = null
@@ -152,11 +153,13 @@ function onMouseMove(e) {
   var w = screenToWorld(sx, sy)
   var nearestV = findNearestVertex(w.x, w.y)
   var nearestE = findNearestEdge(w.x, w.y)
+  var nearestT = _clickMode === "guard-tile" ? findNearestTile(w.x, w.y) : null
 
   _hoverVertex = nearestV || null
   _hoverEdge = nearestE || null
+  _hoverTile = nearestT || null
 
-  if (_hoverVertex || _hoverEdge) _canvas.style.cursor = "pointer"
+  if (_hoverTile || _hoverVertex || _hoverEdge) _canvas.style.cursor = "pointer"
   else _canvas.style.cursor = "grab"
 
   drawBoard()
@@ -182,6 +185,7 @@ function onMouseUp(e) {
 function onMouseLeave() {
   _hoverVertex = null
   _hoverEdge = null
+  _hoverTile = null
   _panState = null
   drawBoard()
 }
@@ -211,6 +215,15 @@ function onCanvasClick(e) {
   var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
 
   var w = screenToWorld(sx, sy)
+
+  if (_clickMode === "guard-tile") {
+    var nearestT = findNearestTile(w.x, w.y)
+    if (nearestT && _callbacks.onTileClick) {
+      _callbacks.onTileClick(nearestT.q, nearestT.r)
+    }
+    return
+  }
+
   var nearestV = findNearestVertex(w.x, w.y)
   var nearestE = findNearestEdge(w.x, w.y)
 
@@ -616,6 +629,8 @@ function drawValidPositions() {
       if (v) drawVertexHighlight(v, "#ffffff44")
     } else if (p.type === "edge") {
       drawEdgeHighlight(p.edge, "#ffffff44")
+    } else if (p.type === "tile") {
+      drawHexHighlight(p.q, p.r, "#ffffff44")
     }
   }
 }
@@ -625,8 +640,18 @@ function drawHoverHighlights() {
 
   var isRoadMode = _clickMode && _clickMode.indexOf("road") >= 0
   var isVertexMode = _clickMode && (_clickMode === "city" || _clickMode.indexOf("settlement") >= 0)
+  var isTileMode = _clickMode === "guard-tile"
 
-  if (_hoverVertex && !isRoadMode) {
+  if (_hoverTile && isTileMode) {
+    var isValid = _validPositions.some(function (p) { return p.type === "tile" && p.q === _hoverTile.q && p.r === _hoverTile.r })
+    if (isValid) {
+      drawHexHighlight(_hoverTile.q, _hoverTile.r, "#ffffffcc")
+    } else {
+      drawHashedHex(_hoverTile.q, _hoverTile.r, "#ff444466")
+    }
+  }
+
+  if (_hoverVertex && !isRoadMode && !isTileMode) {
     var isValid = _validPositions.some(function (p) { return p.type === "vertex" && p.key === _hoverVertex.key })
     if (isValid) {
       drawVertexHighlight(_hoverVertex, "#ffffffcc")
@@ -634,7 +659,7 @@ function drawHoverHighlights() {
       drawHashedVertex(_hoverVertex, "#ff444466")
     }
   }
-  if (_hoverEdge && !isVertexMode) {
+  if (_hoverEdge && !isVertexMode && !isTileMode) {
     var isValid2 = _validPositions.some(function (p) { return p.type === "edge" && p.key === _hoverEdge.key })
     if (isValid2) {
       drawEdgeHighlight(_hoverEdge, "#ffffffcc")
@@ -736,6 +761,56 @@ function findNearestEdge(x, y) {
   }
 
   return best
+}
+
+function findNearestTile(x, y) {
+  var best = null
+  var worldThreshold = CLICK_THRESHOLD / view.scale
+  var bestDist = worldThreshold
+
+  for (var ti = 0; ti < game.board.tiles.length; ti++) {
+    var t = game.board.tiles[ti]
+    var center = hexToPixel(t.coord.q, t.coord.r)
+    var dx = center.x - x
+    var dy = center.y - y
+    var dist = Math.sqrt(dx * dx + dy * dy)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = t.coord
+    }
+  }
+
+  return best
+}
+
+function drawHexHighlight(q, r, color) {
+  var ctx = _ctx
+  ctx.beginPath()
+  for (var i = 0; i < 6; i++) {
+    var c = hexCornerPixel(q, r, i)
+    if (i === 0) ctx.moveTo(c.x, c.y)
+    else ctx.lineTo(c.x, c.y)
+  }
+  ctx.closePath()
+  ctx.fillStyle = color
+  ctx.fill()
+}
+
+function drawHashedHex(q, r, color) {
+  var ctx = _ctx
+  ctx.save()
+  ctx.setLineDash([3, 4])
+  ctx.strokeStyle = color
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  for (var i = 0; i < 6; i++) {
+    var c = hexCornerPixel(q, r, i)
+    if (i === 0) ctx.moveTo(c.x, c.y)
+    else ctx.lineTo(c.x, c.y)
+  }
+  ctx.closePath()
+  ctx.stroke()
+  ctx.restore()
 }
 
 function distToSegment(px, py, x1, y1, x2, y2) {

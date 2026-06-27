@@ -735,6 +735,7 @@ UIInstance.prototype.showGame = function () {
   initBoard(canvas, {
     onVertexClick: function (q, r, corner, vKey) { self.onVertexClick(q, r, corner, vKey) },
     onEdgeClick: function (edge) { self.onEdgeClick(edge) },
+    onTileClick: function (q, r) { self.onTileClick(q, r) },
   })
 
   var keyMap = {
@@ -831,6 +832,12 @@ UIInstance.prototype.showGame = function () {
         self._buildMode = null
         self._roadBuildPlaced = 0
         self.render()
+      } else if (self._buildMode === "guard-tile") {
+        self._buildMode = null
+        self._guardCardIdx = null
+        self.render()
+      } else if (self._buildMode === "guard-victim") {
+        return
       } else if (self._buildMode) {
         self._buildMode = null
         self.render()
@@ -1032,6 +1039,10 @@ UIInstance.prototype.renderActions = function () {
     if (this._buildMode === "road-card") {
       var roadLabel = this._roadBuildPlaced === 0 ? "Click edge for first free road" : "Click edge for second free road"
       html += '<div id="build-status">' + roadLabel + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
+    } else if (this._buildMode === "guard-tile") {
+      html += '<div id="build-status">Click a tile to move the robber <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
+    } else if (this._buildMode === "guard-victim") {
+      html += '<div id="build-status">Click a settlement or city to rob</div>'
     } else if (this._buildMode) {
       var msgs = {
         road: "Click an edge to build a road",
@@ -1068,6 +1079,8 @@ UIInstance.prototype.renderActions = function () {
             if (cp.roadCount < 15 && Game.getValidPositions("road-card").length > 0) {
               clickable = ' data-dev-roadcard-idx="' + hi + '"'
             }
+          } else if (card.cardType === "knight") {
+            clickable = ' data-dev-guard-idx="' + hi + '"'
           } else {
             clickable = ' data-dev-card-idx="' + hi + '"'
           }
@@ -1238,6 +1251,20 @@ UIInstance.prototype.bindActionButtons = function () {
     })(parseInt(roadCardCards[rci].getAttribute("data-dev-roadcard-idx")))
   }
 
+  var guardCards = document.querySelectorAll("[data-dev-guard-idx]")
+  for (var gci = 0; gci < guardCards.length; gci++) {
+    ;(function (idx) {
+      guardCards[gci].addEventListener("click", function () {
+        var self2 = self
+        self2._buildMode = "guard-tile"
+        self2._guardCardIdx = idx
+        setValidPositions("guard-tile")
+        setClickMode("guard-tile")
+        self2.render()
+      })
+    })(parseInt(guardCards[gci].getAttribute("data-dev-guard-idx")))
+  }
+
   var newGame = document.getElementById("new-game-btn")
   if (newGame) {
     newGame.addEventListener("click", function () {
@@ -1273,8 +1300,11 @@ UIInstance.prototype.bindActionButtons = function () {
           Game.consumeRoadBuildCard(game.currentPlayer)
         }
         self._roadBuildPlaced = 0
+        self._buildMode = null
+      } else {
+        self._buildMode = null
       }
-      self._buildMode = null
+      self._guardCardIdx = null
       self.render()
     })
   }
@@ -1324,6 +1354,24 @@ UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
         this.checkWin()
       } else {
         this.showToast(result3.reason)
+      }
+    } else if (this._buildMode === "guard-victim") {
+      var vKey = vertexKey(q, r, corner)
+      var target = null
+      for (var pi = 0; pi < _validPositions.length; pi++) {
+        if (_validPositions[pi].type === "vertex" && _validPositions[pi].key === vKey) {
+          target = _validPositions[pi]
+          break
+        }
+      }
+      if (target && target.owner !== undefined) {
+        Game.robRandomResource(cp, target.owner)
+        Game.playDevCard(cp, this._guardCardIdx)
+        this._buildMode = null
+        this._guardCardIdx = null
+        this.render()
+        this.showToast("Stole a resource!")
+        this.checkWin()
       }
     }
   }
@@ -1414,6 +1462,29 @@ UIInstance.prototype.onEdgeClick = function (edge) {
     } else {
       this.showToast(result2.reason)
     }
+  }
+}
+
+UIInstance.prototype.onTileClick = function (q, r) {
+  if (this._buildMode !== "guard-tile") return
+  var cp = game.currentPlayer
+  Game.moveRobber(cp, q, r)
+
+  var vertices = Game.getRobbableVertices(q, r)
+  if (vertices.length > 0) {
+    var pos = vertices.map(function (v) { return { type: "vertex", key: v.key, owner: v.owner } })
+    setValidPositions(null)
+    _validPositions = pos
+    setClickMode("guard-victim")
+    this._buildMode = "guard-victim"
+    this.render()
+    this.showToast("Choose a player to rob")
+  } else {
+    Game.playDevCard(cp, this._guardCardIdx)
+    this._buildMode = null
+    this._guardCardIdx = null
+    this.render()
+    this.showToast("No one to rob — card played")
   }
 }
 

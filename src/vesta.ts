@@ -125,6 +125,8 @@ export type GameMove =
   | { type: "play-dev-card"; player: number; cardType: string }
   | { type: "play-monopoly"; player: number; resource: TradeResource; totals?: number[]; total?: number }
   | { type: "play-year-of-plenty"; player: number; resources: [TradeResource, TradeResource] }
+  | { type: "move-robber"; player: number; q: number; r: number }
+  | { type: "steal-resource"; player: number; victim: number; resource: TradeResource }
 
 export interface GameTurn {
   turn: number
@@ -976,6 +978,46 @@ export function playDevCard(state: GameState, playerIdx: number, cardType: strin
   return { ...state, players: newPlayers }
 }
 
+export function moveRobber(state: GameState, q: number, r: number): GameState {
+  return { ...state, board: { ...state.board, robber: { q, r } } }
+}
+
+export function getRobbableVertices(
+  state: GameState,
+  playerIdx: number,
+  tileQ: number,
+  tileR: number
+): { key: string; owner: number }[] {
+  const result: { key: string; owner: number }[] = []
+  for (let corner = 0; corner < 6; corner++) {
+    const k = vertexKey(tileQ, tileR, corner)
+    const building = findBuilding(state, k)
+    if (!building) continue
+    if (building.player === playerIdx) continue
+    result.push({ key: k, owner: building.player })
+  }
+  return result
+}
+
+export function robResource(
+  state: GameState,
+  robberPlayer: number,
+  victimPlayer: number,
+  resource: TradeResource
+): GameState {
+  const res = resource as Resource
+  const newPlayers = state.players.map((p, i) => {
+    if (i === robberPlayer) {
+      return { ...p, resources: { ...p.resources, [res]: p.resources[res] + 1 } }
+    }
+    if (i === victimPlayer) {
+      return { ...p, resources: { ...p.resources, [res]: p.resources[res] - 1 } }
+    }
+    return p
+  })
+  return { ...state, players: newPlayers }
+}
+
 export function getValidPositions(
   state: GameState,
   mode: string
@@ -1179,6 +1221,12 @@ export function applyMove(state: GameState, move: GameMove): GameState {
     case "play-year-of-plenty": {
       return playYearOfPlentyCard(state, move.player, move.resources)
     }
+    case "move-robber": {
+      return moveRobber(state, move.q, move.r)
+    }
+    case "steal-resource": {
+      return robResource(state, move.player, move.victim, move.resource)
+    }
   }
 }
 
@@ -1257,6 +1305,12 @@ export function deriveLog(record: GameRecord): string[] {
         }
         case "play-year-of-plenty":
           out.push(names[move.player] + " played year of plenty")
+          break
+        case "move-robber":
+          out.push(names[move.player] + " moved the robber")
+          break
+        case "steal-resource":
+          out.push(names[move.player] + " stole 1 " + move.resource + " from " + names[move.victim])
           break
       }
     }

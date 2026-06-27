@@ -47,6 +47,9 @@ import {
   calculateMonopolyTotals,
   playMonopolyCard,
   playYearOfPlentyCard,
+  moveRobber,
+  getRobbableVertices,
+  robResource,
 } from "./vesta.ts"
 
 import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard, DevDeck } from "./vesta.ts"
@@ -1448,6 +1451,68 @@ describe("truncateText", () => {
 
   it("handles empty string", () => {
     equal(truncateText("", 64, 32), "")
+  })
+})
+
+describe("moveRobber", () => {
+  it("moves robber to a new tile", () => {
+    const g = makeState()
+    const robber = g.board.robber
+    const desertTiles = g.board.tiles.filter(t => t.resource === Resource.Desert)
+    const target = g.board.tiles.find(t => t.coord.q !== robber.q || t.coord.r !== robber.r)
+    if (!target) return
+    const g2 = moveRobber(g, target.coord.q, target.coord.r)
+    equal(g2.board.robber.q, target.coord.q)
+    equal(g2.board.robber.r, target.coord.r)
+    notEqual(g2.board.robber.q, g.board.robber.q)
+  })
+})
+
+describe("getRobbableVertices", () => {
+  it("returns empty for a tile with no buildings", () => {
+    const g = makeState()
+    var g2 = placeSettlement(g, 0, g.board.tiles[2].coord.q, g.board.tiles[2].coord.r, 0)
+    const desert = g.board.tiles.find(t => t.resource === Resource.Desert)!
+    const result = getRobbableVertices(g2, 0, desert.coord.q, desert.coord.r)
+    equal(result.length, 0)
+  })
+
+  it("excludes own buildings from robbable vertices", () => {
+    const g = makeState()
+    const desert = g.board.tiles.find(t => t.resource === Resource.Desert)!
+    const [q, r] = [desert.coord.q, desert.coord.r]
+    var g2 = g
+    for (let c = 0; c < 6; c++) {
+      g2 = placeSettlement(g2, 0, q, r, c)
+    }
+    const result = getRobbableVertices(g2, 0, q, r)
+    equal(result.every(v => v.owner !== 0), true)
+  })
+
+  it("includes opponent buildings on the tile", () => {
+    const g = makeState()
+    const desert = g.board.tiles.find(t => t.resource === Resource.Desert)!
+    const [q, r] = [desert.coord.q, desert.coord.r]
+    var g2 = placeSettlement(g, 1, q, r, 0)
+    const result = getRobbableVertices(g2, 0, q, r)
+    equal(result.length, 1)
+    equal(result[0].owner, 1)
+  })
+})
+
+describe("robResource", () => {
+  it("transfers one resource from victim to robber", () => {
+    const g = makeState()
+    const g2 = robResource(g, 0, 1, Resource.Brick as TradeResource)
+    equal(g2.players[0].resources[Resource.Brick], 1)
+    equal(g2.players[1].resources[Resource.Brick], -1)
+  })
+
+  it("does not affect other resources", () => {
+    const g = makeState()
+    var g2 = robResource(g, 0, 1, Resource.Brick as TradeResource)
+    equal(g2.players[0].resources[Resource.Wool], 0)
+    equal(g2.players[1].resources[Resource.Wool], 0)
   })
 })
 
