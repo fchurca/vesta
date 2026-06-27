@@ -123,7 +123,7 @@ export type GameMove =
   | { type: "trade"; player: number; partner: "bank" | number; give: Record<TradeResource, number>; take: Record<TradeResource, number> }
   | { type: "buy-dev-card"; player: number }
   | { type: "play-dev-card"; player: number; cardType: string }
-  | { type: "play-monopoly"; player: number; resource: TradeResource }
+  | { type: "play-monopoly"; player: number; resource: TradeResource; totals?: number[]; total?: number }
   | { type: "play-year-of-plenty"; player: number; resources: [TradeResource, TradeResource] }
 
 export interface GameTurn {
@@ -1241,9 +1241,20 @@ export function deriveLog(record: GameRecord): string[] {
         case "play-dev-card":
           out.push(names[move.player] + " played a " + move.cardType + " card")
           break
-        case "play-monopoly":
-          out.push(names[move.player] + " played monopoly on " + move.resource)
+        case "play-monopoly": {
+          let line = names[move.player] + " played monopoly on " + move.resource
+          if (move.total !== undefined && move.totals) {
+            const parts: string[] = []
+            for (let pi = 0; pi < move.totals.length; pi++) {
+              if (move.totals[pi]! > 0) {
+                parts.push(names[pi]! + " x" + move.totals[pi])
+              }
+            }
+            line += " (" + parts.join(", ") + ", total " + move.total + ")"
+          }
+          out.push(line)
           break
+        }
         case "play-year-of-plenty":
           out.push(names[move.player] + " played year of plenty")
           break

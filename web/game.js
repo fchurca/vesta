@@ -160,9 +160,11 @@ var Game = {
 
   playMonopolyCard: function (playerIdx, resource) {
     var total = 0
+    var totals = []
     for (var i = 0; i < game.players.length; i++) {
-      if (i === playerIdx) continue
+      if (i === playerIdx) { totals.push(0); continue }
       var amount = game.players[i].resources[resource] || 0
+      totals.push(amount)
       total += amount
       game.players[i].resources[resource] = 0
     }
@@ -180,6 +182,8 @@ var Game = {
       type: "play-monopoly",
       player: playerIdx,
       resource: resource,
+      totals: totals,
+      total: total,
     })
     saveGame()
   },

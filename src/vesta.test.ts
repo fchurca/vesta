@@ -1396,6 +1396,19 @@ describe("deriveLog", () => {
     ok(log.some(m => m.includes("played monopoly on brick")))
   })
 
+  it("includes play-monopoly message with totals", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "play-monopoly", player: 0, resource: "brick", totals: [0, 2, 0, 1], total: 3 }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("played monopoly on brick (Player 2 x2, Player 4 x1, total 3)")))
+  })
+
   it("includes play-year-of-plenty message", () => {
     const g = makeState()
     const turn: GameTurn = {
