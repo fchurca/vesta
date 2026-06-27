@@ -75,8 +75,8 @@ var Game = {
     return canBuildSettlement(game, playerIdx, q, r, corner, isInitial)
   },
 
-  canBuildRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2, isInitial, fromSettlementVertex) {
-    return canBuildRoad(game, playerIdx, q1, r1, corner1, q2, r2, corner2, isInitial, fromSettlementVertex)
+  canBuildRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2, isInitial, fromSettlementVertex, free) {
+    return canBuildRoad(game, playerIdx, q1, r1, corner1, q2, r2, corner2, isInitial, fromSettlementVertex, free)
   },
 
   canBuildCity: function (playerIdx, q, r, corner) {
@@ -90,8 +90,8 @@ var Game = {
     saveGame()
   },
 
-  placeRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2) {
-    game = placeRoad(game, playerIdx, q1, r1, corner1, q2, r2, corner2)
+  placeRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2, free) {
+    game = placeRoad(game, playerIdx, q1, r1, corner1, q2, r2, corner2, free)
     game.currentTurnMoves.push({ type: "place-road", player: playerIdx, q1: q1, r1: r1, corner1: corner1, q2: q2, r2: r2, corner2: corner2 })
     saveGame()
   },
@@ -203,6 +203,18 @@ var Game = {
     saveGame()
   },
 
+  consumeRoadBuildCard: function (playerIdx) {
+    var hand = game.players[playerIdx].hand
+    for (var hi = 0; hi < hand.length; hi++) {
+      if (hand[hi].cardType === "road-build" && hand[hi].available) {
+        hand.splice(hi, 1)
+        break
+      }
+    }
+    game.currentTurnMoves.push({ type: "play-dev-card", player: playerIdx, cardType: "road-build" })
+    saveGame()
+  },
+
   nextTurn: function () {
     game.currentTurnMoves.push({ type: "end-turn", player: game.currentPlayer })
     var prevPhase = game.phase
@@ -246,10 +258,11 @@ var Game = {
         var s = player.settlements[i]
         result.push({ type: "vertex", key: vertexKey(s.q, s.r, s.corner) })
       }
-    } else if (mode === "road") {
+    } else if (mode === "road" || mode === "road-card") {
       for (var ek in _edgeCache) {
         var e = _edgeCache[ek]
-        var r2 = Game.canBuildRoad(cp, e.hex.q, e.hex.r, e.hex.c1, e.hex.q, e.hex.r, e.hex.c2, false, null)
+        var free = mode === "road-card"
+        var r2 = canBuildRoad(game, cp, e.hex.q, e.hex.r, e.hex.c1, e.hex.q, e.hex.r, e.hex.c2, false, null, free)
         if (r2.ok) result.push({ type: "edge", key: ek, edge: e })
       }
     } else if (mode === "initial-settlement") {

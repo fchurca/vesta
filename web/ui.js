@@ -824,7 +824,14 @@ UIInstance.prototype.showGame = function () {
   document.addEventListener("keydown", function (e) {
     if (e.repeat) return
     if (e.key === "Escape") {
-      if (self._buildMode) {
+      if (self._buildMode === "road-card") {
+        if (self._roadBuildPlaced > 0) {
+          Game.consumeRoadBuildCard(game.currentPlayer)
+        }
+        self._buildMode = null
+        self._roadBuildPlaced = 0
+        self.render()
+      } else if (self._buildMode) {
         self._buildMode = null
         self.render()
       }
@@ -1022,7 +1029,10 @@ UIInstance.prototype.renderActions = function () {
     html += buildBtn("🏰", BUILDING_COST.city, "build-city", "city", "Build city", { built: cp.cities.length, max: 4 })
     html += '</div>'
 
-    if (this._buildMode) {
+    if (this._buildMode === "road-card") {
+      var roadLabel = this._roadBuildPlaced === 0 ? "Click edge for first free road" : "Click edge for second free road"
+      html += '<div id="build-status">' + roadLabel + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
+    } else if (this._buildMode) {
       var msgs = {
         road: "Click an edge to build a road",
         settlement: "Click a corner to build a settlement",
@@ -1054,6 +1064,10 @@ UIInstance.prototype.renderActions = function () {
             clickable = ' data-dev-monopoly-idx="' + hi + '"'
           } else if (card.cardType === "year-of-plenty") {
             clickable = ' data-dev-yop-idx="' + hi + '"'
+          } else if (card.cardType === "road-build") {
+            if (cp.roadCount < 15 && Game.getValidPositions("road-card").length > 0) {
+              clickable = ' data-dev-roadcard-idx="' + hi + '"'
+            }
           } else {
             clickable = ' data-dev-card-idx="' + hi + '"'
           }
@@ -1211,6 +1225,19 @@ UIInstance.prototype.bindActionButtons = function () {
     })
   }
 
+  var roadCardCards = document.querySelectorAll("[data-dev-roadcard-idx]")
+  for (var rci = 0; rci < roadCardCards.length; rci++) {
+    ;(function (idx) {
+      roadCardCards[rci].addEventListener("click", function () {
+        self._buildMode = "road-card"
+        self._roadBuildPlaced = 0
+        setValidPositions("road-card")
+        setClickMode("road-card")
+        self.render()
+      })
+    })(parseInt(roadCardCards[rci].getAttribute("data-dev-roadcard-idx")))
+  }
+
   var newGame = document.getElementById("new-game-btn")
   if (newGame) {
     newGame.addEventListener("click", function () {
@@ -1241,6 +1268,12 @@ UIInstance.prototype.bindActionButtons = function () {
   var cancelBtn = document.getElementById("cancel-build-btn")
   if (cancelBtn) {
     cancelBtn.addEventListener("click", function () {
+      if (self._buildMode === "road-card") {
+        if (self._roadBuildPlaced > 0) {
+          Game.consumeRoadBuildCard(game.currentPlayer)
+        }
+        self._roadBuildPlaced = 0
+      }
       self._buildMode = null
       self.render()
     })
@@ -1340,18 +1373,44 @@ UIInstance.prototype.onEdgeClick = function (edge) {
     return
   }
 
-  if (phase === "play" && this._buildMode === "road") {
+  if (phase === "play" && (this._buildMode === "road" || this._buildMode === "road-card")) {
     var c1b = edge.hex.c1
     var c2b = edge.hex.c2
     var eqb = edge.hex.q
     var erb = edge.hex.r
 
-    var result2 = Game.canBuildRoad(cp, eqb, erb, c1b, eqb, erb, c2b, false, null)
+    var free = this._buildMode === "road-card" || undefined
+    var result2 = Game.canBuildRoad(cp, eqb, erb, c1b, eqb, erb, c2b, false, null, free)
     if (result2.ok) {
-      Game.placeRoad(cp, eqb, erb, c1b, eqb, erb, c2b)
-      this._buildMode = null
-      this.render()
-      this.showToast("Road built!")
+      Game.placeRoad(cp, eqb, erb, c1b, eqb, erb, c2b, free)
+
+      if (this._buildMode === "road-card") {
+        this._roadBuildPlaced++
+        if (this._roadBuildPlaced >= 2) {
+          Game.consumeRoadBuildCard(cp)
+          this._buildMode = null
+          this._roadBuildPlaced = 0
+          this.render()
+          this.showToast("Roads built!")
+        } else {
+          var remaining = Game.getValidPositions("road-card")
+          if (remaining.length === 0) {
+            Game.consumeRoadBuildCard(cp)
+            this._buildMode = null
+            this._roadBuildPlaced = 0
+            this.render()
+            this.showToast("No more valid positions — card resolved")
+          } else {
+            setValidPositions("road-card")
+            this.render()
+            this.showToast("Place second free road")
+          }
+        }
+      } else {
+        this._buildMode = null
+        this.render()
+        this.showToast("Road built!")
+      }
     } else {
       this.showToast(result2.reason)
     }

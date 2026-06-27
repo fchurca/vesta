@@ -479,6 +479,25 @@ describe("canBuildRoad", () => {
     ok(!result.ok)
     equal(result.reason, "Maximum roads reached")
   })
+
+  it("allows free road without resources", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    const result = canBuildRoad(g, 0, 0, 0, 1, 0, 0, 2, false, null, true)
+    ok(result.ok)
+  })
+
+  it("rejects free road without connectivity", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[0]!.resources[Resource.Lumber] = 1
+    const result = canBuildRoad(g, 0, 0, 0, 0, 0, 0, 1, false, null, true)
+    ok(!result.ok)
+    equal(result.reason, "No adjacent settlement or road")
+  })
 })
 
 describe("canBuildCity", () => {
@@ -561,13 +580,26 @@ describe("placeRoad", () => {
   it("deducts resources during play phase", () => {
     let g = makeState()
     g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
     g.players[0]!.resources[Resource.Brick] = 1
     g.players[0]!.resources[Resource.Lumber] = 1
-    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
     equal(g.players[0]!.resources[Resource.Brick], 0)
     equal(g.players[0]!.resources[Resource.Lumber], 0)
   })
 
+  it("does not deduct resources when free is true", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g.players[0]!.resources[Resource.Brick] = 1
+    g.players[0]!.resources[Resource.Lumber] = 1
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2, true)
+    equal(g.players[0]!.resources[Resource.Brick], 1)
+    equal(g.players[0]!.resources[Resource.Lumber], 1)
+  })
 })
 
 describe("placeCity", () => {

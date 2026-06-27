@@ -539,7 +539,8 @@ export function canBuildRoad(
   r2: number,
   corner2: number,
   isInitial: boolean,
-  fromSettlementVertex: { q: number; r: number; corner: number } | null
+  fromSettlementVertex: { q: number; r: number; corner: number } | null,
+  free?: boolean
 ): { ok: boolean; reason?: string } {
   const eKey = edgeKey(q1, r1, corner1, q2, r2, corner2)
   if (roadExists(state, eKey)) return { ok: false, reason: "Edge already occupied" }
@@ -554,8 +555,10 @@ export function canBuildRoad(
     const player = state.players[playerIdx]!
     if (player.roadCount >= MAX_ROADS) return { ok: false, reason: "Maximum roads reached" }
 
-    const cost = BUILDING_COST.road!
-    if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }
+    if (!free) {
+      const cost = BUILDING_COST.road!
+      if (!hasResources(player, cost)) return { ok: false, reason: "Not enough resources" }
+    }
 
     if (!edgeConnectedToPlayer(state, playerIdx, eKey)) {
       return { ok: false, reason: "No adjacent settlement or road" }
@@ -628,7 +631,8 @@ export function placeRoad(
   corner1: number,
   q2: number,
   r2: number,
-  corner2: number
+  corner2: number,
+  free?: boolean
 ): GameState {
   const eKey = edgeKey(q1, r1, corner1, q2, r2, corner2)
   const road: RoadData = { key: eKey, q1, r1, corner1, q2, r2, corner2 }
@@ -644,7 +648,7 @@ export function placeRoad(
 
   let newState = { ...state, players: newPlayers }
 
-  if (state.phase === "play") {
+  if (state.phase === "play" && !free) {
     newState = {
       ...newState,
       players: newPlayers.map((p, i) =>

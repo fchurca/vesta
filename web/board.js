@@ -214,7 +214,7 @@ function onCanvasClick(e) {
   var nearestV = findNearestVertex(w.x, w.y)
   var nearestE = findNearestEdge(w.x, w.y)
 
-  var preferEdges = _clickMode === "road" || _clickMode === "initial-road"
+  var preferEdges = _clickMode === "road" || _clickMode === "initial-road" || _clickMode === "road-card"
 
   if (preferEdges) {
     if (nearestE && _callbacks.onEdgeClick) {
