@@ -329,6 +329,11 @@ UIInstance.prototype.openTradePopup = function () {
     return partners[(idx + 1) % partners.length]
   }
 
+  function prevPartner() {
+    var idx = partners.indexOf(tradeMode)
+    return partners[(idx - 1 + partners.length) % partners.length]
+  }
+
   function partnerLabel() {
     if (tradeMode === "bank") return "bank"
     return game.players[tradeMode].name
@@ -337,6 +342,20 @@ UIInstance.prototype.openTradePopup = function () {
   function partnerColor() {
     if (tradeMode === "bank") return "#8b6914"
     return game.players[tradeMode].color
+  }
+
+  function prevPartnerColor() {
+    var idx = partners.indexOf(tradeMode)
+    var prev = partners[(idx - 1 + partners.length) % partners.length]
+    if (prev === "bank") return "#8b6914"
+    return game.players[prev].color
+  }
+
+  function nextPartnerColor() {
+    var idx = partners.indexOf(tradeMode)
+    var next = partners[(idx + 1) % partners.length]
+    if (next === "bank") return "#8b6914"
+    return game.players[next].color
   }
 
   function giveStep(res) { return tradeMode === "bank" ? cp.rates[res] : 1 }
@@ -375,11 +394,20 @@ UIInstance.prototype.openTradePopup = function () {
     if (giveTotal === 0 || takeTotal === 0) return false
 
     if (tradeMode === "bank") {
-      if (giveCount !== 1 || takeCount !== 1) return false
-      if (giveRes === takeRes) return false
-      if (give[giveRes] !== cp.rates[giveRes]) return false
-      if (take[takeRes] !== 1) return false
-      if ((cp.resources[giveRes] || 0) < give[giveRes]) return false
+      var valueToBank = 0
+      for (var i = 0; i < RESOURCE_KEYS.length; i++) {
+        var r = RESOURCE_KEYS[i]
+        if (give[r] > 0) {
+          if (give[r] % cp.rates[r] !== 0) return false
+          valueToBank += give[r] / cp.rates[r]
+        }
+      }
+      if (valueToBank !== takeTotal) return false
+      if (valueToBank === 0) return false
+      for (var v = 0; v < RESOURCE_KEYS.length; v++) {
+        var rv = RESOURCE_KEYS[v]
+        if ((cp.resources[rv] || 0) < give[rv]) return false
+      }
       return true
     }
 
@@ -403,46 +431,46 @@ UIInstance.prototype.openTradePopup = function () {
     return html
   }
 
-  function poolHTML(keys, action, stepFn, canAdd) {
+  function poolHTML(keys, action, stepFn, canAdd, resObj) {
     var html = ""
     for (var i = 0; i < keys.length; i++) {
       var r = keys[i]
       var disabled = !canAdd(r)
       var style = disabled ? ' style="opacity:0.35;cursor:default;pointer-events:none"' : ''
-      var label = tradeMode === "bank" && action === "add-give" ? RESOURCE_EMOJI[r] + '\u00d7' + stepFn(r) : RESOURCE_EMOJI[r]
+      var label = ""
+      if (resObj) {
+        label = RESOURCE_EMOJI[r] + ' ' + (resObj[r] || 0)
+        if (tradeMode === "bank" && action === "add-give") {
+          label += '<br><span class="trade-pool-rate">\u00d7' + stepFn(r) + '</span>'
+        }
+      } else {
+        label = RESOURCE_EMOJI[r]
+      }
       html += '<span class="trade-pool-item"' + style + ' data-trade-action="' + action + '" data-trade-res="' + r + '">' + label + '</span>'
     }
     return html
   }
 
-  function resourcesShortHTML(obj) {
-    var parts = []
-    for (var i = 0; i < RESOURCE_KEYS.length; i++) {
-      var r = RESOURCE_KEYS[i]
-      parts.push(RESOURCE_EMOJI[r] + (obj[r] || 0))
-    }
-    return parts.join(" ")
-  }
-
   function render() {
-    var giveResHTML = resourcesShortHTML(cp.resources)
-    var partnerObj = tradeMode === "bank" ? null : game.players[tradeMode].resources
-    var takeResHTML = partnerObj ? resourcesShortHTML(partnerObj) : ""
+    var partnerRes = tradeMode === "bank" ? null : game.players[tradeMode].resources
 
     return (
       '<div class="modal trade-modal">' +
         '<div class="trade-columns">' +
           '<div class="trade-col">' +
-            '<div class="trade-col-title" style="background:' + cp.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center">' + cp.name + ' <span class="trade-arrow-h">\u2192</span><span class="trade-arrow-v">\u2193</span></div>' +
+            '<div class="trade-col-title" style="background:' + cp.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center">' + cp.name + '</div>' +
             '<div class="trade-selection">' + chipsHTML(give, "remove-give") + '</div>' +
-            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-give", giveStep, canAddGive) + '</div>' +
-            '<div class="trade-resources">' + giveResHTML + '</div>' +
+            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-give", giveStep, canAddGive, cp.resources) + '</div>' +
           '</div>' +
+          '<button class="trade-reset-btn" id="trade-reset">\uD83E\uDDF9</button>' +
           '<div class="trade-col">' +
-            '<div class="trade-col-title" id="trade-partner-btn" style="background:' + partnerColor() + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center;cursor:pointer"><span class="trade-arrow-h">\u2190 </span><span class="trade-arrow-v">\u2191 </span>' + partnerLabel() + '</div>' +
+            '<div style="display:flex;align-items:stretch;gap:4px;margin-bottom:6px">' +
+              '<button class="trade-partner-btn" id="trade-partner-prev" style="background:' + prevPartnerColor() + '44">\u25C0</button>' +
+              '<div class="trade-col-title" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;margin-bottom:0;background:' + partnerColor() + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + partnerLabel() + '</div>' +
+              '<button class="trade-partner-btn" id="trade-partner-next" style="background:' + nextPartnerColor() + '44">\u25B6</button>' +
+            '</div>' +
             '<div class="trade-selection">' + chipsHTML(take, "remove-take") + '</div>' +
-            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-take", takeStep, canAddTake) + '</div>' +
-            '<div class="trade-resources">' + takeResHTML + '</div>' +
+            '<div class="trade-pool">' + poolHTML(RESOURCE_KEYS, "add-take", takeStep, canAddTake, partnerRes) + '</div>' +
           '</div>' +
         '</div>' +
         '<div class="trade-actions">' +
@@ -475,15 +503,32 @@ UIInstance.prototype.openTradePopup = function () {
       document.body.removeChild(overlay)
     })
 
-    var partnerBtn = document.getElementById("trade-partner-btn")
-    if (partnerBtn) {
-      partnerBtn.addEventListener("click", function () {
-        tradeMode = nextPartner()
+    var resetBtn = document.getElementById("trade-reset")
+    if (resetBtn) {
+      resetBtn.addEventListener("click", function () {
         give = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
         take = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
         overlay.innerHTML = render()
         rebind(overlay)
       })
+    }
+
+    function switchPartner(newMode) {
+      tradeMode = newMode
+      give = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+      take = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+      overlay.innerHTML = render()
+      rebind(overlay)
+    }
+
+    var prevBtn = document.getElementById("trade-partner-prev")
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () { switchPartner(prevPartner()) })
+    }
+
+    var nextBtn = document.getElementById("trade-partner-next")
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () { switchPartner(nextPartner()) })
     }
 
     var poolClicks = overlay.querySelectorAll("[data-trade-action]")
