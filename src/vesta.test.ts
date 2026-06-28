@@ -938,6 +938,55 @@ describe("devCards", () => {
     equal(g.players[0]!.vp, 0)
   })
 
+  it("largestArmy is null initially", () => {
+    const g = makeState()
+    equal(g.largestArmy, null)
+  })
+
+  it("first player to 3 knights gains largest army (+2 VP)", () => {
+    let g = makeState()
+    g.players[0]!.knights = 2
+    g.players[0]!.hand = [
+      { cardType: "knight", available: true },
+    ]
+    g = playDevCard(g, 0, "knight")
+    equal(g.largestArmy, 0)
+    equal(g.players[0]!.knights, 3)
+    equal(g.players[0]!.vp, 2)
+  })
+
+  it("hostile takeover: overtaking player gains largest army, old holder loses VP", () => {
+    let g = makeState()
+    g.players[0]!.knights = 3
+    g.players[0]!.hand = []
+    g.players[1]!.knights = 3
+    g.players[1]!.hand = [{ cardType: "knight", available: true }]
+    g.largestArmy = 0
+    g.players[0]!.vp = 6
+    g.players[1]!.vp = 4
+    g = playDevCard(g, 1, "knight")
+    equal(g.largestArmy, 1)
+    equal(g.players[1]!.knights, 4)
+    equal(g.players[1]!.vp, 6)
+    equal(g.players[0]!.vp, 4)
+  })
+
+  it("tie does not transfer largest army", () => {
+    let g = makeState()
+    g.players[0]!.knights = 3
+    g.players[0]!.hand = []
+    g.players[1]!.knights = 2
+    g.players[1]!.hand = [{ cardType: "knight", available: true }]
+    g.largestArmy = 0
+    g.players[0]!.vp = 6
+    g.players[1]!.vp = 4
+    g = playDevCard(g, 1, "knight")
+    equal(g.largestArmy, 0)
+    equal(g.players[1]!.knights, 3)
+    equal(g.players[1]!.vp, 4)
+    equal(g.players[0]!.vp, 6)
+  })
+
   it("playDevCard road-build removes card with no other effect", () => {
     let g = makeState()
     g.players[0]!.vp = 5

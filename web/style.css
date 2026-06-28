@@ -262,6 +262,20 @@ h2 {
   font-weight: 600;
 }
 
+.guards-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.guards-count.largest-army {
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #1a1a1a;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 700;
+}
+
 .player-stats {
   display: flex;
   gap: 6px;

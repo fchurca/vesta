@@ -241,7 +241,7 @@ var Game = {
     game = robResource(game, playerIdx, victimIdx, picked)
     game.currentTurnMoves.push({ type: "steal-resource", player: playerIdx, victim: victimIdx, resource: picked })
     saveGame()
-    return true
+    return picked
   },
 
   getValidGuardTiles: function () {

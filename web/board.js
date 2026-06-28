@@ -151,7 +151,8 @@ function onMouseMove(e) {
   }
 
   var w = screenToWorld(sx, sy)
-  var nearestV = findNearestVertex(w.x, w.y)
+  var vMultiplier = _clickMode === "guard-victim" ? 2.5 : 1
+  var nearestV = findNearestVertex(w.x, w.y, vMultiplier)
   var nearestE = findNearestEdge(w.x, w.y)
   var nearestT = _clickMode === "guard-tile" ? findNearestTile(w.x, w.y) : null
 
@@ -220,6 +221,15 @@ function onCanvasClick(e) {
     var nearestT = findNearestTile(w.x, w.y)
     if (nearestT && _callbacks.onTileClick) {
       _callbacks.onTileClick(nearestT.q, nearestT.r)
+    }
+    return
+  }
+
+  if (_clickMode === "guard-victim") {
+    var nearestV = findNearestVertex(w.x, w.y, 2.5)
+    if (nearestV && _callbacks.onVertexClick) {
+      var h = nearestV.hexes[0]
+      _callbacks.onVertexClick(h.q, h.r, h.corner, nearestV.key)
     }
     return
   }
@@ -373,26 +383,11 @@ function drawRobber() {
   if (!game || !game.board.robber) return
   var rc = game.board.robber
   var ctx = _ctx
-  var corners = []
-  for (var i = 0; i < 6; i++) {
-    var c = hexCornerPixel(rc.q, rc.r, i)
-    corners.push(c)
-  }
-
-  ctx.beginPath()
-  ctx.moveTo(corners[0].x, corners[0].y)
-  for (var j = 1; j < 6; j++) {
-    ctx.lineTo(corners[j].x, corners[j].y)
-  }
-  ctx.closePath()
-  ctx.fillStyle = "#00000044"
-  ctx.fill()
-
   var center = hexToPixel(rc.q, rc.r)
   ctx.font = "32px sans-serif"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.fillText("\uD83E\uDD77", center.x, center.y - 12)
+  ctx.fillText("\uD83E\uDD77", center.x, center.y + 17)
 }
 
 var _highlightedNumber = null
@@ -625,8 +620,13 @@ function drawValidPositions() {
   for (var i = 0; i < _validPositions.length; i++) {
     var p = _validPositions[i]
     if (p.type === "vertex") {
-      var v = _vertexCache[p.key]
-      if (v) drawVertexHighlight(v, "#ffffff44")
+      if (_clickMode === "guard-victim") {
+        var v = _vertexCache[p.key]
+        if (v) drawBuildingHighlight(v.pixel.x, v.pixel.y, p.buildingType || "settlement")
+      } else {
+        var v = _vertexCache[p.key]
+        if (v) drawVertexHighlight(v, "#ffffff44")
+      }
     } else if (p.type === "edge") {
       drawEdgeHighlight(p.edge, "#ffffff44")
     } else if (p.type === "tile") {
@@ -654,7 +654,19 @@ function drawHoverHighlights() {
   if (_hoverVertex && !isRoadMode && !isTileMode) {
     var isValid = _validPositions.some(function (p) { return p.type === "vertex" && p.key === _hoverVertex.key })
     if (isValid) {
-      drawVertexHighlight(_hoverVertex, "#ffffffcc")
+      if (_clickMode === "guard-victim") {
+        var vp = null
+        for (var pi = 0; pi < _validPositions.length; pi++) {
+          if (_validPositions[pi].type === "vertex" && _validPositions[pi].key === _hoverVertex.key) {
+            vp = _validPositions[pi]
+            break
+          }
+        }
+        var bt = (vp && vp.buildingType) || "settlement"
+        drawBuildingHighlight(_hoverVertex.pixel.x, _hoverVertex.pixel.y, bt)
+      } else {
+        drawVertexHighlight(_hoverVertex, "#ffffffcc")
+      }
     } else {
       drawHashedVertex(_hoverVertex, "#ff444466")
     }
@@ -723,9 +735,10 @@ function drawEdgeHighlight(edge, color) {
   ctx.stroke()
 }
 
-function findNearestVertex(x, y) {
+function findNearestVertex(x, y, mul) {
   var best = null
-  var worldThreshold = CLICK_THRESHOLD / view.scale
+  mul = mul || 1
+  var worldThreshold = (CLICK_THRESHOLD * mul) / view.scale
   var bestDist = worldThreshold
 
   for (var i = 0; i < _allVertices.length; i++) {

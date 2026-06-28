@@ -111,6 +111,7 @@ export interface GameState {
   devDeck: DevDeck
   players: Player[]
   winner: number | null
+  largestArmy: number | null
   title: string
 }
 
@@ -972,10 +973,34 @@ export function playDevCard(state: GameState, playerIdx: number, cardType: strin
   const newKnights = cardType === "knight" ? p.knights + 1 : p.knights
 
   const newHand = p.hand.filter((_, i) => i !== idx)
-  const newPlayers = state.players.map((pl, i) =>
+  let newPlayers = state.players.map((pl, i) =>
     i === playerIdx ? { ...pl, hand: newHand, vp: newVp, knights: newKnights } : pl
   )
-  return { ...state, players: newPlayers }
+  let newLargestArmy = state.largestArmy
+
+  if (cardType === "knight" && newKnights >= 3) {
+    if (state.largestArmy === null) {
+      newLargestArmy = playerIdx
+      newPlayers = newPlayers.map((pl, i) =>
+        i === playerIdx ? { ...pl, vp: pl.vp + 2 } : pl
+      )
+    } else if (state.largestArmy !== playerIdx) {
+      const currentHolderKnights = newPlayers[state.largestArmy]!.knights
+      const diff = newKnights - currentHolderKnights
+      if (diff > 0) {
+        newLargestArmy = playerIdx
+        newPlayers = newPlayers.map((pl, i) =>
+          i === playerIdx
+            ? { ...pl, vp: pl.vp + 2 }
+            : i === state.largestArmy
+              ? { ...pl, vp: pl.vp - 2 }
+              : pl
+        )
+      }
+    }
+  }
+
+  return { ...state, players: newPlayers, largestArmy: newLargestArmy }
 }
 
 export function moveRobber(state: GameState, q: number, r: number): GameState {
@@ -987,14 +1012,14 @@ export function getRobbableVertices(
   playerIdx: number,
   tileQ: number,
   tileR: number
-): { key: string; owner: number }[] {
-  const result: { key: string; owner: number }[] = []
+): { key: string; owner: number; buildingType: "settlement" | "city" }[] {
+  const result: { key: string; owner: number; buildingType: "settlement" | "city" }[] = []
   for (let corner = 0; corner < 6; corner++) {
     const k = vertexKey(tileQ, tileR, corner)
     const building = findBuilding(state, k)
     if (!building) continue
     if (building.player === playerIdx) continue
-    result.push({ key: k, owner: building.player })
+    result.push({ key: k, owner: building.player, buildingType: building.type })
   }
   return result
 }
@@ -1129,6 +1154,7 @@ export function createGame(opts: GameOptions): GameState {
     })),
     devDeck: createPoolDeck(opts.roll),
     winner: null,
+    largestArmy: null,
     title: truncateText(opts.title ?? "", 64, 32),
   }
 }
@@ -1310,7 +1336,7 @@ export function deriveLog(record: GameRecord): string[] {
           out.push(names[move.player] + " moved the robber")
           break
         case "steal-resource":
-          out.push(names[move.player] + " stole 1 " + move.resource + " from " + names[move.victim])
+          out.push(names[move.player] + " stole " + move.resource + " from " + names[move.victim])
           break
       }
     }

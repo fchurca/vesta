@@ -886,16 +886,16 @@ UIInstance.prototype.render = function () {
 function playerCardHTML(i) {
   var p = game.players[i]
   var active = i === game.currentPlayer ? ' active' : ''
+  var laClass = game.largestArmy === i ? 'largest-army' : ''
   return (
     '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
       '<div class="player-head">' +
         '<span class="player-name" style="color:' + p.color + '">' + p.name + '</span>' +
       '</div>' +
       '<div class="player-stats">' +
-        '<span>\uD83C\uDF09' + 0 + '</span>' +
-        '<span>\uD83D\uDC82' + 0 + '</span>' +
         '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
         '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
+        '<span class="guards-count ' + laClass + '">\uD83D\uDC82' + p.knights + '</span>' +
         '<span>\uD83E\uDE99' + p.vp + '</span>' +
       '</div>' +
       '<div class="resources-compact">' +
@@ -911,12 +911,12 @@ function playerCardHTML(i) {
 
 function playerCompactHTML(i) {
   var p = game.players[i]
+  var laClass = game.largestArmy === i ? 'largest-army' : ''
   return (
     '<div class="player-stats">' +
-      '<span>\uD83C\uDF09' + 0 + '</span>' +
-      '<span>\uD83D\uDC82' + 0 + '</span>' +
       '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
       '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
+      '<span class="guards-count ' + laClass + '">\uD83D\uDC82' + p.knights + '</span>' +
       '<span>\uD83E\uDE99' + p.vp + '</span>' +
     '</div>' +
     '<div class="resources-compact">' +
@@ -1060,7 +1060,7 @@ UIInstance.prototype.renderActions = function () {
     var devCostStr = ""
     for (var dr2 in devCost) { for (var di = 0; di < devCost[dr2]; di++) devCostStr += RESOURCE_EMOJI[dr2] }
     var deckEmpty = game.devDeck.remaining === 0
-    html += '<button class="btn" id="buy-dev-card"' + (devCanAfford && !deckEmpty ? '' : ' disabled') + ' title="Buy development card">\uD83C\uDCCF' + devCostStr + '</button>'
+    html += '<button class="btn" id="buy-dev-card"' + (devCanAfford && !deckEmpty && game.rolled ? '' : ' disabled') + ' title="Buy development card">\uD83C\uDCCF' + devCostStr + '</button>'
     html += '</div>'
 
     if (cp.hand && cp.hand.length > 0) {
@@ -1365,12 +1365,16 @@ UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
         }
       }
       if (target && target.owner !== undefined) {
-        Game.robRandomResource(cp, target.owner)
+        var stolen = Game.robRandomResource(cp, target.owner)
         Game.playDevCard(cp, this._guardCardIdx)
         this._buildMode = null
         this._guardCardIdx = null
         this.render()
-        this.showToast("Stole a resource!")
+        if (stolen) {
+          this.showToast("Stole " + RESOURCE_EMOJI[stolen] + " from " + game.players[target.owner].name)
+        } else {
+          this.showToast("No resources to steal from " + game.players[target.owner].name)
+        }
         this.checkWin()
       }
     }
@@ -1471,8 +1475,22 @@ UIInstance.prototype.onTileClick = function (q, r) {
   Game.moveRobber(cp, q, r)
 
   var vertices = Game.getRobbableVertices(q, r)
-  if (vertices.length > 0) {
-    var pos = vertices.map(function (v) { return { type: "vertex", key: v.key, owner: v.owner } })
+  var firstOwner = vertices.length > 0 ? vertices[0].owner : -1
+  var singleOwner = vertices.length > 0 && vertices.every(function (v) { return v.owner === firstOwner })
+  if (singleOwner) {
+    var stolen = Game.robRandomResource(cp, firstOwner)
+    Game.playDevCard(cp, this._guardCardIdx)
+    this._buildMode = null
+    this._guardCardIdx = null
+    this.render()
+    if (stolen) {
+      this.showToast("Stole " + RESOURCE_EMOJI[stolen] + " from " + game.players[firstOwner].name)
+    } else {
+      this.showToast("No resources to steal from " + game.players[firstOwner].name)
+    }
+    this.checkWin()
+  } else if (vertices.length > 0) {
+    var pos = vertices.map(function (v) { return { type: "vertex", key: v.key, owner: v.owner, buildingType: v.buildingType } })
     setValidPositions(null)
     _validPositions = pos
     setClickMode("guard-victim")
@@ -1521,6 +1539,10 @@ UIInstance.prototype.renderLog = function () {
         return names[move.player] + " played monopoly on " + move.resource
       case "play-year-of-plenty":
         return names[move.player] + " played year of plenty"
+      case "move-robber":
+        return names[move.player] + " moved the robber"
+      case "steal-resource":
+        return names[move.player] + " stole " + move.resource + " from " + names[move.victim]
     }
     return ""
   }
