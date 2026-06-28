@@ -107,6 +107,12 @@ export interface GameState {
   rolled: boolean
   setupStep: SetupStep
   pendingSettlement: { q: number; r: number; corner: number } | null
+  pendingTrade: {
+    from: number
+    to: number
+    give: Record<TradeResource, number>
+    take: Record<TradeResource, number>
+  } | null
   board: Board
   devDeck: DevDeck
   players: Player[]
@@ -128,6 +134,10 @@ export type GameMove =
   | { type: "play-year-of-plenty"; player: number; resources: [TradeResource, TradeResource] }
   | { type: "move-robber"; player: number; q: number; r: number }
   | { type: "steal-resource"; player: number; victim: number; resource: TradeResource }
+  | { type: "propose-trade"; player: number; partner: number; give: Record<TradeResource, number>; take: Record<TradeResource, number> }
+  | { type: "accept-trade"; player: number }
+  | { type: "reject-trade"; player: number }
+  | { type: "cancel-proposal"; player: number }
 
 export interface GameTurn {
   turn: number
@@ -1138,6 +1148,7 @@ export function createGame(opts: GameOptions): GameState {
     rolled: false,
     setupStep: "settlement",
     pendingSettlement: null,
+    pendingTrade: null,
     board: { tiles, ports, robber },
     players: Array.from({ length: opts.players }, (_, i) => ({
       id: i,
@@ -1253,6 +1264,66 @@ export function applyMove(state: GameState, move: GameMove): GameState {
     case "steal-resource": {
       return robResource(state, move.player, move.victim, move.resource)
     }
+    case "propose-trade": {
+      if (state.pendingTrade) throw new Error("Already a pending trade")
+      const hasGive = Object.values(move.give).some(v => v > 0)
+      const hasTake = Object.values(move.take).some(v => v > 0)
+      if (!hasGive || !hasTake) throw new Error("Trade must include both give and take")
+      const proposer = state.players[move.player]!
+      for (const r in move.give) {
+        const res = r as TradeResource
+        if ((proposer.resources[res] ?? 0) < (move.give[res] ?? 0))
+          throw new Error("Not enough resources")
+      }
+      const partner = state.players[move.partner]!
+      for (const r in move.take) {
+        const res = r as TradeResource
+        if ((partner.resources[res] ?? 0) < (move.take[res] ?? 0))
+          throw new Error("Partner does not have enough resources")
+      }
+      for (const r in move.give) {
+        if ((move.give[r as TradeResource] ?? 0) > 0 && (move.take[r as TradeResource] ?? 0) > 0)
+          throw new Error("Cannot give and take the same resource")
+      }
+      return {
+        ...state,
+        pendingTrade: { from: move.player, to: move.partner, give: move.give, take: move.take },
+      }
+    }
+    case "accept-trade": {
+      if (!state.pendingTrade) throw new Error("No pending trade")
+      if (move.player !== state.pendingTrade.to) throw new Error("Only the partner can accept")
+      const newPlayers = [...state.players]
+      const proposer = state.players[state.pendingTrade.from]!
+      const partner = state.players[state.pendingTrade.to]!
+      const newProposerRes = { ...proposer.resources }
+      const newPartnerRes = { ...partner.resources }
+      for (const r in state.pendingTrade.give) {
+        const res = r as TradeResource
+        const amount = state.pendingTrade.give[res]!
+        newProposerRes[res] = (newProposerRes[res] ?? 0) - amount
+        newPartnerRes[res] = (newPartnerRes[res] ?? 0) + amount
+      }
+      for (const r in state.pendingTrade.take) {
+        const res = r as TradeResource
+        const amount = state.pendingTrade.take[res]!
+        newPartnerRes[res] = (newPartnerRes[res] ?? 0) - amount
+        newProposerRes[res] = (newProposerRes[res] ?? 0) + amount
+      }
+      newPlayers[state.pendingTrade.from] = { ...proposer, resources: newProposerRes }
+      newPlayers[state.pendingTrade.to] = { ...partner, resources: newPartnerRes }
+      return { ...state, players: newPlayers, pendingTrade: null }
+    }
+    case "reject-trade": {
+      if (!state.pendingTrade) throw new Error("No pending trade")
+      if (move.player !== state.pendingTrade.to) throw new Error("Only the partner can reject")
+      return { ...state, pendingTrade: null }
+    }
+    case "cancel-proposal": {
+      if (!state.pendingTrade) throw new Error("No pending trade")
+      if (move.player !== state.pendingTrade.from) throw new Error("Only the proposer can cancel")
+      return { ...state, pendingTrade: null }
+    }
   }
 }
 
@@ -1337,6 +1408,21 @@ export function deriveLog(record: GameRecord): string[] {
           break
         case "steal-resource":
           out.push(names[move.player] + " stole " + move.resource + " from " + names[move.victim])
+          break
+        case "propose-trade": {
+          const giveStr = Object.entries(move.give).filter(([,c]) => c > 0).map(([r,c]) => c + " " + r).join(", ")
+          const takeStr = Object.entries(move.take).filter(([,c]) => c > 0).map(([r,c]) => c + " " + r).join(", ")
+          out.push(names[move.player] + " proposed: " + giveStr + " for " + takeStr + " with " + names[move.partner])
+          break
+        }
+        case "accept-trade":
+          out.push(names[move.player] + " accepted the trade")
+          break
+        case "reject-trade":
+          out.push(names[move.player] + " canceled the trade")
+          break
+        case "cancel-proposal":
+          out.push(names[move.player] + " canceled the trade")
           break
       }
     }

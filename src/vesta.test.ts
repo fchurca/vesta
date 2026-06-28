@@ -1565,6 +1565,168 @@ describe("robResource", () => {
   })
 })
 
+describe("pendingTrade", () => {
+  it("propose-trade sets pendingTrade", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const next = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    ok(next.pendingTrade !== null)
+    equal(next.pendingTrade!.from, 0)
+    equal(next.pendingTrade!.to, 1)
+    equal(next.pendingTrade!.give.brick, 4)
+    equal(next.pendingTrade!.take.wool, 2)
+  })
+
+  it("propose-trade throws on duplicate", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    try {
+      applyMove(g2, {
+        type: "propose-trade", player: 0, partner: 1,
+        give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+        take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+      })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("pending"))
+    }
+  })
+
+  it("propose-trade throws on insufficient resources", () => {
+    const g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 2
+    try {
+      applyMove(g, {
+        type: "propose-trade", player: 0, partner: 1,
+        give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+        take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+      })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("Not enough"))
+    }
+  })
+
+  it("propose-trade throws on overlap", () => {
+    const g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Brick] = 2
+    try {
+      applyMove(g, {
+        type: "propose-trade", player: 0, partner: 1,
+        give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+        take: { brick: 1, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("Cannot"))
+    }
+  })
+
+  it("accept-trade executes trade and clears pendingTrade", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    ok(g2.pendingTrade !== null)
+    const g3 = applyMove(g2, { type: "accept-trade", player: 1 })
+    equal(g3.pendingTrade, null)
+    equal(g3.players[0]!.resources[Resource.Brick], 1)
+    equal(g3.players[0]!.resources[Resource.Wool], 2)
+    equal(g3.players[1]!.resources[Resource.Brick], 4)
+    equal(g3.players[1]!.resources[Resource.Wool], 1)
+  })
+
+  it("accept-trade throws when no pending trade", () => {
+    const g = makeState()
+    try {
+      applyMove(g, { type: "accept-trade", player: 0 })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("No pending"))
+    }
+  })
+
+  it("accept-trade throws when wrong player", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    try {
+      applyMove(g2, { type: "accept-trade", player: 0 })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("Only the partner"))
+    }
+  })
+
+  it("reject-trade clears pendingTrade", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    ok(g2.pendingTrade !== null)
+    const g3 = applyMove(g2, { type: "reject-trade", player: 1 })
+    equal(g3.pendingTrade, null)
+    equal(g3.players[0]!.resources[Resource.Brick], 5)
+    equal(g3.players[1]!.resources[Resource.Wool], 3)
+  })
+
+  it("cancel-proposal clears pendingTrade", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    ok(g2.pendingTrade !== null)
+    const g3 = applyMove(g2, { type: "cancel-proposal", player: 0 })
+    equal(g3.pendingTrade, null)
+  })
+
+  it("cancel-proposal throws when wrong player", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Wool] = 3
+    const g2 = applyMove(g, {
+      type: "propose-trade", player: 0, partner: 1,
+      give: { brick: 4, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      take: { brick: 0, lumber: 0, wool: 2, grain: 0, ore: 0 },
+    })
+    try {
+      applyMove(g2, { type: "cancel-proposal", player: 1 })
+      ok(false, "should have thrown")
+    } catch (e: any) {
+      ok(e.message.includes("Only the proposer"))
+    }
+  })
+})
+
 describe("titleToSlug", () => {
   it("lowers case", () => {
     equal(titleToSlug("My Game"), "my-game")

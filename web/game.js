@@ -121,6 +121,60 @@ var Game = {
     saveGame()
   },
 
+  proposeTrade: function (give, take, partner) {
+    game = applyMove(game, {
+      type: "propose-trade",
+      player: game.currentPlayer,
+      partner: partner,
+      give: give,
+      take: take,
+    })
+    game.currentTurnMoves.push({
+      type: "propose-trade",
+      player: game.currentPlayer,
+      partner: partner,
+      give: give,
+      take: take,
+    })
+    saveGame()
+  },
+
+  acceptTrade: function () {
+    game = applyMove(game, {
+      type: "accept-trade",
+      player: game.pendingTrade.to,
+    })
+    game.currentTurnMoves.push({
+      type: "accept-trade",
+      player: game.pendingTrade.to,
+    })
+    saveGame()
+  },
+
+  rejectTrade: function () {
+    game = applyMove(game, {
+      type: "reject-trade",
+      player: game.pendingTrade.to,
+    })
+    game.currentTurnMoves.push({
+      type: "reject-trade",
+      player: game.pendingTrade.to,
+    })
+    saveGame()
+  },
+
+  cancelProposal: function () {
+    game = applyMove(game, {
+      type: "cancel-proposal",
+      player: game.currentPlayer,
+    })
+    game.currentTurnMoves.push({
+      type: "cancel-proposal",
+      player: game.currentPlayer,
+    })
+    saveGame()
+  },
+
   canBuyDevCard: function (playerIdx) {
     return canBuyDevCard(game, playerIdx)
   },

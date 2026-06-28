@@ -452,7 +452,33 @@ UIInstance.prototype.openTradePopup = function () {
   }
 
   function render() {
+    if (game.pendingTrade) {
+      var pending = game.pendingTrade
+      var proposer = game.players[pending.from]
+      var partner = game.players[pending.to]
+      return (
+        '<div class="modal trade-modal">' +
+          '<div class="trade-columns">' +
+            '<div class="trade-col">' +
+              '<div class="trade-col-title" style="background:' + proposer.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center">' + proposer.name + '</div>' +
+              '<div class="trade-selection">' + chipsHTML(pending.give, "") + '</div>' +
+            '</div>' +
+            '<div class="trade-col">' +
+              '<div class="trade-col-title" style="background:' + partner.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px;text-align:center">' + partner.name + '</div>' +
+              '<div class="trade-selection">' + chipsHTML(pending.take, "") + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="trade-actions">' +
+            '<button class="btn btn-primary" id="trade-accept">\uD83E\uDD1D Accept</button>' +
+            '<button class="btn" id="trade-decline">\u274C Decline</button>' +
+          '</div>' +
+        '</div>'
+      )
+    }
+
     var partnerRes = tradeMode === "bank" ? null : game.players[tradeMode].resources
+    var okLabel = tradeMode === "bank" ? "\uD83E\uDD1D Confirm" : "\u2709\uFE0F Propose"
+    var okId = tradeMode === "bank" ? "trade-confirm" : "trade-propose"
 
     return (
       '<div class="modal trade-modal">' +
@@ -474,7 +500,7 @@ UIInstance.prototype.openTradePopup = function () {
           '</div>' +
         '</div>' +
         '<div class="trade-actions">' +
-          '<button class="btn btn-primary" id="trade-ok"' + (validate() ? '' : ' disabled') + '>OK</button>' +
+          '<button class="btn btn-primary" id="' + okId + '"' + (validate() ? '' : ' disabled') + '>' + okLabel + '</button>' +
           '<button class="btn" id="trade-cancel">Cancel</button>' +
         '</div>' +
       '</div>'
@@ -490,18 +516,58 @@ UIInstance.prototype.openTradePopup = function () {
   }
 
   function rebind(overlay) {
-    var okBtn = document.getElementById("trade-ok")
-    if (okBtn && !okBtn.disabled) {
-      okBtn.addEventListener("click", function () {
-        Game.doTrade(give, take, tradeMode === "bank" ? "bank" : tradeMode)
+    if (game.pendingTrade) {
+      var acceptBtn = document.getElementById("trade-accept")
+      var declineBtn = document.getElementById("trade-decline")
+
+      if (acceptBtn) {
+        acceptBtn.addEventListener("click", function () {
+          try {
+            Game.acceptTrade()
+            document.body.removeChild(overlay)
+            self.render()
+          } catch (_) {}
+        })
+      }
+      if (declineBtn) {
+        declineBtn.addEventListener("click", function () {
+          if (game.pendingTrade && game.pendingTrade.from === game.currentPlayer) {
+            try { Game.cancelProposal() } catch (_) {}
+          } else {
+            try { Game.rejectTrade() } catch (_) {}
+          }
+          document.body.removeChild(overlay)
+          self.render()
+        })
+      }
+      return
+    }
+
+    var cancelBtn = document.getElementById("trade-cancel")
+
+    var confirmBtn = document.getElementById("trade-confirm")
+    if (confirmBtn && !confirmBtn.disabled) {
+      confirmBtn.addEventListener("click", function () {
+        Game.doTrade(give, take, "bank")
         document.body.removeChild(overlay)
         self.render()
       })
     }
 
-    document.getElementById("trade-cancel").addEventListener("click", function () {
-      document.body.removeChild(overlay)
-    })
+    var proposeBtn = document.getElementById("trade-propose")
+    if (proposeBtn && !proposeBtn.disabled) {
+      proposeBtn.addEventListener("click", function () {
+        Game.proposeTrade(give, take, tradeMode)
+        overlay.innerHTML = render()
+        rebind(overlay)
+      })
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", function () {
+        document.body.removeChild(overlay)
+      })
+    }
 
     var resetBtn = document.getElementById("trade-reset")
     if (resetBtn) {
