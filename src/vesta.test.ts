@@ -1520,7 +1520,7 @@ describe("moveRobber", () => {
 describe("getRobbableVertices", () => {
   it("returns empty for a tile with no buildings", () => {
     const g = makeState()
-    var g2 = placeSettlement(g, 0, g.board.tiles[2].coord.q, g.board.tiles[2].coord.r, 0)
+    var g2 = placeSettlement(g, 0, g.board.tiles[2]!.coord.q, g.board.tiles[2]!.coord.r, 0)
     const desert = g.board.tiles.find(t => t.resource === Resource.Desert)!
     const result = getRobbableVertices(g2, 0, desert.coord.q, desert.coord.r)
     equal(result.length, 0)
@@ -1545,7 +1545,7 @@ describe("getRobbableVertices", () => {
     var g2 = placeSettlement(g, 1, q, r, 0)
     const result = getRobbableVertices(g2, 0, q, r)
     equal(result.length, 1)
-    equal(result[0].owner, 1)
+    equal(result[0]!.owner, 1)
   })
 })
 
@@ -1553,15 +1553,15 @@ describe("robResource", () => {
   it("transfers one resource from victim to robber", () => {
     const g = makeState()
     const g2 = robResource(g, 0, 1, Resource.Brick as TradeResource)
-    equal(g2.players[0].resources[Resource.Brick], 1)
-    equal(g2.players[1].resources[Resource.Brick], -1)
+    equal(g2.players[0]!.resources[Resource.Brick], 1)
+    equal(g2.players[1]!.resources[Resource.Brick], -1)
   })
 
   it("does not affect other resources", () => {
     const g = makeState()
     var g2 = robResource(g, 0, 1, Resource.Brick as TradeResource)
-    equal(g2.players[0].resources[Resource.Wool], 0)
-    equal(g2.players[1].resources[Resource.Wool], 0)
+    equal(g2.players[0]!.resources[Resource.Wool], 0)
+    equal(g2.players[1]!.resources[Resource.Wool], 0)
   })
 })
 
