@@ -998,6 +998,7 @@ function playerCardHTML(i) {
   var p = game.players[i]
   var active = i === game.currentPlayer ? ' active' : ''
   var laClass = game.largestArmy === i ? 'largest-army' : ''
+  var lrClass = game.longestRoad === i ? 'longest-road' : ''
   return (
     '<div class="player-card' + active + '" data-player-idx="' + i + '">' +
       '<div class="player-head">' +
@@ -1007,6 +1008,7 @@ function playerCardHTML(i) {
         '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
         '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
         '<span class="guards-count ' + laClass + '">\uD83D\uDC82' + p.knights + '</span>' +
+        '<span class="road-length ' + lrClass + '">\uD83C\uDF09' + computeLongestRoad(game, i) + '</span>' +
         '<span>\uD83E\uDE99' + p.vp + '</span>' +
       '</div>' +
       '<div class="resources-compact">' +
@@ -1023,11 +1025,13 @@ function playerCardHTML(i) {
 function playerCompactHTML(i) {
   var p = game.players[i]
   var laClass = game.largestArmy === i ? 'largest-army' : ''
+  var lrClass = game.longestRoad === i ? 'longest-road' : ''
   return (
     '<div class="player-stats">' +
       '<span>\uD83D\uDED6' + p.settlements.length + '</span>' +
       '<span>\uD83C\uDFEF' + p.cities.length + '</span>' +
       '<span class="guards-count ' + laClass + '">\uD83D\uDC82' + p.knights + '</span>' +
+      '<span class="road-length ' + lrClass + '">\uD83C\uDF09' + computeLongestRoad(game, i) + '</span>' +
       '<span>\uD83E\uDE99' + p.vp + '</span>' +
     '</div>' +
     '<div class="resources-compact">' +

@@ -118,6 +118,7 @@ export interface GameState {
   players: Player[]
   winner: number | null
   largestArmy: number | null
+  longestRoad: number | null
   title: string
 }
 
@@ -670,7 +671,7 @@ export function placeRoad(
     }
   }
 
-  return newState
+  return updateLongestRoad(newState)
 }
 
 export function placeCity(
@@ -1013,6 +1014,167 @@ export function playDevCard(state: GameState, playerIdx: number, cardType: strin
   return { ...state, players: newPlayers, largestArmy: newLargestArmy }
 }
 
+export function computeLongestRoad(state: GameState, playerIdx: number): number {
+  const player = state.players[playerIdx]!
+  if (player.roads.length < 5) return 0
+
+  const edges = getEdgeCache()
+
+  const adj: Map<string, Set<string>> = new Map()
+  for (const road of player.roads) {
+    const e = edges[road.key]
+    if (!e) continue
+    if (!adj.has(e.v1)) adj.set(e.v1, new Set())
+    if (!adj.has(e.v2)) adj.set(e.v2, new Set())
+    adj.get(e.v1)!.add(e.v2)
+    adj.get(e.v2)!.add(e.v1)
+  }
+
+  function isBlocked(vKey: string): boolean {
+    const bldg = findBuilding(state, vKey)
+    return bldg !== null && bldg.player !== playerIdx
+  }
+
+  const roots = new Set<string>()
+  for (const s of player.settlements) {
+    roots.add(vertexKey(s.q, s.r, s.corner))
+  }
+  for (const c of player.cities) {
+    roots.add(vertexKey(c.q, c.r, c.corner))
+  }
+
+  const graphs: Set<string>[] = []
+  const vertexToGraph = new Map<string, number>()
+
+  for (const root of roots) {
+    if (vertexToGraph.has(root)) continue
+    const g = new Set([root])
+    graphs.push(g)
+    vertexToGraph.set(root, graphs.length - 1)
+  }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (let gi = 0; gi < graphs.length; gi++) {
+      const graph = graphs[gi]!
+      if (graph.size === 0) continue
+
+      const boundary = new Set<string>()
+      for (const vKey of graph) {
+        if (isBlocked(vKey)) continue
+        const neighbors = adj.get(vKey)
+        if (!neighbors) continue
+        for (const n of neighbors) {
+          if (!graph.has(n)) {
+            boundary.add(vKey)
+            break
+          }
+        }
+      }
+
+      for (const vKey of boundary) {
+        const neighbors = adj.get(vKey)
+        if (!neighbors) continue
+        for (const n of neighbors) {
+          if (graph.has(n)) continue
+
+          if (vertexToGraph.has(n)) {
+            const otherGi = vertexToGraph.get(n)!
+            if (otherGi === gi) continue
+            const other = graphs[otherGi]!
+            if (other.size === 0) continue
+            for (const v of other) {
+              graph.add(v)
+              vertexToGraph.set(v, gi)
+            }
+            other.clear()
+            changed = true
+          } else {
+            graph.add(n)
+            vertexToGraph.set(n, gi)
+            if (!isBlocked(n)) changed = true
+          }
+        }
+      }
+    }
+  }
+
+  function bfsFarthest(start: string, graph: Set<string>): { node: string; dist: number } {
+    const dist = new Map<string, number>([[start, 0]])
+    const queue = [start]
+    let idx = 0
+    while (idx < queue.length) {
+      const v = queue[idx++]!
+      const neighbors = adj.get(v)
+      if (!neighbors) continue
+      for (const n of neighbors) {
+        if (graph.has(n) && !dist.has(n)) {
+          dist.set(n, dist.get(v)! + 1)
+          queue.push(n)
+        }
+      }
+    }
+    let farthest = start
+    let maxDist = 0
+    for (const [v, d] of dist) {
+      if (d > maxDist) { maxDist = d; farthest = v }
+    }
+    return { node: farthest, dist: maxDist }
+  }
+
+  let longest = 0
+  for (const graph of graphs) {
+    if (graph.size < 2) continue
+    const anyNode = graph.values().next().value!
+    const first = bfsFarthest(anyNode, graph)
+    const second = bfsFarthest(first.node, graph)
+    if (second.dist > longest) longest = second.dist
+  }
+
+  return longest
+}
+
+export function updateLongestRoad(state: GameState): GameState {
+  const lengths = state.players.map((_, i) => computeLongestRoad(state, i))
+  let bestIdx = -1
+  let bestLen = 0
+  let tie = false
+  for (let i = 0; i < lengths.length; i++) {
+    if (lengths[i]! >= 5 && lengths[i]! > bestLen) {
+      bestLen = lengths[i]!
+      bestIdx = i
+      tie = false
+    } else if (lengths[i]! === bestLen && lengths[i]! >= 5) {
+      tie = true
+    }
+  }
+
+  let newLongestRoad = state.longestRoad
+  let newPlayers = state.players
+
+  if (bestLen >= 5 && !tie) {
+    if (newLongestRoad !== bestIdx) {
+      if (newLongestRoad !== null) {
+        newPlayers = newPlayers.map((p, i) =>
+          i === newLongestRoad ? { ...p, vp: p.vp - 2 } : p
+        )
+      }
+      newPlayers = newPlayers.map((p, i) =>
+        i === bestIdx ? { ...p, vp: p.vp + 2 } : p
+      )
+      newLongestRoad = bestIdx
+    }
+  } else if (newLongestRoad !== null) {
+    newPlayers = newPlayers.map((p, i) =>
+      i === newLongestRoad ? { ...p, vp: p.vp - 2 } : p
+    )
+    newLongestRoad = null
+  }
+
+  return { ...state, players: newPlayers, longestRoad: newLongestRoad }
+}
+
 export function moveRobber(state: GameState, q: number, r: number): GameState {
   return { ...state, board: { ...state.board, robber: { q, r } } }
 }
@@ -1166,6 +1328,7 @@ export function createGame(opts: GameOptions): GameState {
     devDeck: createPoolDeck(opts.roll),
     winner: null,
     largestArmy: null,
+    longestRoad: null,
     title: truncateText(opts.title ?? "", 64, 32),
   }
 }

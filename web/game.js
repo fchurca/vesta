@@ -140,25 +140,27 @@ var Game = {
   },
 
   acceptTrade: function () {
+    var partner = game.pendingTrade.to
     game = applyMove(game, {
       type: "accept-trade",
-      player: game.pendingTrade.to,
+      player: partner,
     })
     game.currentTurnMoves.push({
       type: "accept-trade",
-      player: game.pendingTrade.to,
+      player: partner,
     })
     saveGame()
   },
 
   rejectTrade: function () {
+    var partner = game.pendingTrade.to
     game = applyMove(game, {
       type: "reject-trade",
-      player: game.pendingTrade.to,
+      player: partner,
     })
     game.currentTurnMoves.push({
       type: "reject-trade",
-      player: game.pendingTrade.to,
+      player: partner,
     })
     saveGame()
   },

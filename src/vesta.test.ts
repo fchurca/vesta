@@ -50,6 +50,8 @@ import {
   moveRobber,
   getRobbableVertices,
   robResource,
+  computeLongestRoad,
+  updateLongestRoad,
 } from "./vesta.ts"
 
 import type { GameMove, GameTurn, GameRecord, TradeResource, DevCard, DevDeck } from "./vesta.ts"
@@ -1724,6 +1726,141 @@ describe("pendingTrade", () => {
     } catch (e: any) {
       ok(e.message.includes("Only the proposer"))
     }
+  })
+})
+
+describe("computeLongestRoad", () => {
+  it("returns 0 for fewer than 5 roads", () => {
+    const g = makeState()
+    equal(computeLongestRoad(g, 0), 0)
+  })
+
+  it("returns 5 for a chain of 5 roads from settlement", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
+    equal(computeLongestRoad(g, 0), 5)
+  })
+
+  it("takes longest branch at a fork", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    equal(computeLongestRoad(g, 0), 5)
+  })
+
+  it("stops at opponent settlement", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3)
+    g = placeSettlement(g, 1, 0, 0, 3)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
+    equal(computeLongestRoad(g, 0), 3)
+  })
+
+  it("passes through own settlement", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g = placeSettlement(g, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
+    equal(computeLongestRoad(g, 0), 5)
+  })
+
+  it("merges two settlement graphs that meet at a shared vertex", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 1, true)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 0, true)
+    g = placeSettlement(g, 0, 1, 0, 1)
+    g = placeRoad(g, 0, 1, 0, 1, 1, 0, 0, true)
+    g = placeRoad(g, 0, 1, 0, 0, 1, 0, 5, true)
+    g = placeRoad(g, 0, 1, 0, 5, 1, 0, 4, true)
+    equal(computeLongestRoad(g, 0), 5)
+  })
+
+  it("returns 0 for a player with no settlements", () => {
+    let g = makeState()
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
+    equal(computeLongestRoad(g, 0), 0)
+  })
+})
+
+describe("updateLongestRoad", () => {
+  it("grants 2 VP to the first player with >= 5 road chain", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    const vpBefore = g.players[0]!.vp
+    equal(g.longestRoad, null)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1, true)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2, true)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3, true)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4, true)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5, true)
+    equal(g.longestRoad, 0)
+    equal(g.players[0]!.vp, vpBefore + 2)
+  })
+
+  it("transfers VP when another player surpasses", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 2)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3, true)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4, true)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5, true)
+    g = placeRoad(g, 0, 0, 0, 5, 0, 0, 0, true)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1, true)
+    equal(g.longestRoad, 0)
+    const vp0 = g.players[0]!.vp
+    g = placeSettlement(g, 1, 1, 0, 2)
+    g = placeRoad(g, 1, 1, 0, 2, 1, 0, 3, true)
+    g = placeRoad(g, 1, 1, 0, 3, 1, 0, 4, true)
+    g = placeRoad(g, 1, 1, 0, 4, 1, 0, 5, true)
+    g = placeRoad(g, 1, 1, 0, 5, 1, 0, 0, true)
+    g = placeRoad(g, 1, 2, 0, 4, 2, 0, 5, true)
+    g = placeRoad(g, 1, 2, 0, 5, 2, 0, 0, true)
+    equal(g.longestRoad, 1)
+    equal(g.players[0]!.vp, vp0 - 2)
+  })
+
+  it("removes VP on tie", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1, true)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2, true)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3, true)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4, true)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5, true)
+    equal(g.longestRoad, 0)
+    const vp0 = g.players[0]!.vp
+    g = placeSettlement(g, 1, 2, 0, 0)
+    g = placeRoad(g, 1, 2, 0, 0, 2, 0, 1, true)
+    g = placeRoad(g, 1, 2, 0, 1, 2, 0, 2, true)
+    g = placeRoad(g, 1, 2, 0, 2, 2, 0, 3, true)
+    g = placeRoad(g, 1, 2, 0, 3, 2, 0, 4, true)
+    g = placeRoad(g, 1, 2, 0, 4, 2, 0, 5, true)
+    equal(g.longestRoad, null)
+    equal(g.players[0]!.vp, vp0 - 2)
   })
 })
 
