@@ -238,8 +238,9 @@ UIInstance.prototype.showLanding = function () {
   document.getElementById("game-title-head").textContent = ""
 
   var saved = loadGame()
-  var restoreHTML = saved
-    ? '<button class="btn btn-primary" id="restore-btn">Restore Game</button>'
+  var savedHTML = saved
+    ? '<button class="btn btn-primary saved-game-btn" id="restore-btn">↩️ Restore Game</button>' +
+      '<button class="btn btn-danger saved-game-btn" id="discard-btn">❌ Discard Game</button>'
     : ''
 
   this.appEl.innerHTML =
@@ -247,7 +248,7 @@ UIInstance.prototype.showLanding = function () {
       '<h2>VESTA</h2>' +
       '<p class="landing-sub">Expanding Settlements Through Accord</p>' +
       '<div class="landing-buttons">' +
-        restoreHTML +
+        savedHTML +
         '<button class="btn" id="landing-new">⭐ New Game</button>' +
         '<button class="btn" id="landing-load">📁 Load Game</button>' +
       '</div>' +
@@ -280,6 +281,12 @@ UIInstance.prototype.showLanding = function () {
       backfillPlayerRates()
       self.showGame()
     })
+
+    document.getElementById("discard-btn").addEventListener("click", function () {
+      clearGame()
+      var btns = document.querySelectorAll(".saved-game-btn")
+      for (var i = 0; i < btns.length; i++) btns[i].classList.add("hidden")
+    })
   }
 }
 
@@ -295,7 +302,7 @@ UIInstance.prototype.confirmDiscard = function (onConfirm) {
   overlay.innerHTML =
     '<div class="modal">' +
       '<h2>Discard current game?</h2>' +
-      '<p>Your current game will be lost.</p>' +
+      '<p>Your current game may be lost forever (That\'s a long time!)</p>' +
       '<div class="btn-row" style="display:flex;gap:8px;justify-content:center">' +
         '<button class="btn btn-primary" id="confirm-yes" style="flex:1">Yes, discard</button>' +
         '<button class="btn" id="confirm-no" style="flex:1">Cancel</button>' +
@@ -1213,7 +1220,9 @@ UIInstance.prototype.renderActions = function () {
   }
 
   if (phase === "gameover") {
-    html += '<div class="phase-label">' + game.players[game.winner].name + ' wins!</div>'
+    var winner = game.players[game.winner]
+    html += '<div class="phase-label" style="background:' + winner.color + ';color:#fff;font-weight:600;padding:4px 8px;border-radius:4px">' + winner.name + ' wins with ' + winner.vp + ' VP!</div>'
+    html += playerCompactHTML(game.winner)
     html += '<button class="btn btn-primary" id="new-game-btn">New game</button>'
   }
 
