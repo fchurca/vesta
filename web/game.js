@@ -42,10 +42,24 @@ var RESOURCE_COLORS = {
 var game = null
 
 var Game = {
-  start: function (playerCount, seed, title) {
-    game = createGame({ players: playerCount, roll: seed, title: title || "" })
+  start: async function (playerCount, seed, title) {
+    var urdSeed = randomHex(32)
+    var poolCount = 10
+    var pools = []
+    var allPlayers = []
+    for (var i = 0; i < playerCount; i++) {
+      allPlayers.push(i)
+      pools[i] = await createInitialPool(String(i), poolCount, urdSeed)
+    }
+    var turnResult = await resolveRoll(pools, urdSeed, factorial(playerCount), allPlayers, "turn-order")
+    var turnPerm = rankToPermutation(turnResult.roll, playerCount)
+    var boardResult = await resolveRoll(turnResult.pools, urdSeed, URD_MAX_SIDES, allPlayers, "board-seed")
+    var boardSeed = boardResult.roll
+    game = createGame({ players: playerCount, roll: boardSeed, title: title || "" })
     game.turns = []
     game.currentTurnMoves = []
+    game.turnOrder = turnPerm
+    game.urd = { seed: urdSeed, pools: boardResult.pools, resolutions: [turnResult.resolution, boardResult.resolution] }
   },
 
   captureStartRecord: function () {
@@ -56,10 +70,21 @@ var Game = {
     return game.players[game.currentPlayer]
   },
 
-  rollDice: function () {
-    var d1 = Math.ceil(Math.random() * 6)
-    var d2 = Math.ceil(Math.random() * 6)
+  rollDice: async function () {
+    var pos = game.turnOrder ? game.turnOrder.indexOf(game.currentPlayer) : -1
+    var nextPlayer
+    if (pos >= 0 && game.phase === "play") {
+      nextPlayer = game.turnOrder[(pos + 1) % game.turnOrder.length]
+    } else {
+      nextPlayer = (game.currentPlayer + 1) % game.players.length
+    }
+    var urdResult = await resolveRoll(game.urd.pools, game.urd.seed, 36, [game.currentPlayer, nextPlayer], "roll-" + game.turn)
+    var roll = urdResult.roll
+    var d1 = Math.ceil(roll / 6)
+    var d2 = ((roll - 1) % 6) + 1
     var total = d1 + d2
+    game.urd.pools = urdResult.pools
+    game.urd.resolutions.push(urdResult.resolution)
     var gains = produce(game, total)
     game = applyMove(game, { type: "roll-dice", player: game.currentPlayer, dice: [d1, d2] })
     game.currentTurnMoves.push({ type: "roll-dice", player: game.currentPlayer, dice: [d1, d2] })
@@ -319,7 +344,7 @@ var Game = {
     return getRobbableVertices(game, game.currentPlayer, tileQ, tileR)
   },
 
-  robRandomResource: function (playerIdx, victimIdx) {
+  robRandomResource: async function (playerIdx, victimIdx) {
     var available = []
     var victim = game.players[victimIdx]
     for (var r in RESOURCE_NAMES) {
@@ -327,7 +352,15 @@ var Game = {
       if (victim.resources[r] > 0) available.push(r)
     }
     if (available.length === 0) return false
-    var picked = available[Math.floor(Math.random() * available.length)]
+    var picked
+    if (available.length === 1) {
+      picked = available[0]
+    } else {
+      var urdResult = await resolveRoll(game.urd.pools, game.urd.seed, available.length, [game.currentPlayer, victimIdx], "steal-" + game.urd.resolutions.length)
+      picked = available[urdResult.roll - 1]
+      game.urd.pools = urdResult.pools
+      game.urd.resolutions.push(urdResult.resolution)
+    }
     game = robResource(game, playerIdx, victimIdx, picked)
     game.currentTurnMoves.push({ type: "steal-resource", player: playerIdx, victim: victimIdx, resource: picked })
     saveGame()
@@ -351,6 +384,12 @@ var Game = {
     var prevPlayer = game.currentPlayer
     var prevTurn = game.turn
     game = applyMove(game, { type: "end-turn", player: prevPlayer })
+    if (prevPhase === "initial_second" && game.phase === "play" && game.turnOrder) {
+      game.currentPlayer = game.turnOrder[0]
+    } else if (game.phase === "play" && game.turnOrder) {
+      var pos = game.turnOrder.indexOf(prevPlayer)
+      game.currentPlayer = game.turnOrder[(pos + 1) % game.turnOrder.length]
+    }
     if (game.currentTurnMoves.length > 0) {
       game.turns.push({
         turn: prevTurn,

@@ -213,7 +213,7 @@ UIInstance.prototype.showSetup = function () {
   countSelect.addEventListener("change", updateNames)
   updateNames()
 
-  document.getElementById("start-btn").addEventListener("click", function () {
+  document.getElementById("start-btn").addEventListener("click", async function () {
     var count = parseInt(countSelect.value)
     var names = []
     var inputs = nameDiv.querySelectorAll("input")
@@ -222,10 +222,12 @@ UIInstance.prototype.showSetup = function () {
     }
 
     var rawTitle = titleInput.value || defaultTitle
-    Game.start(count, Date.now(), rawTitle)
+    await Game.start(count, Date.now(), rawTitle)
+    var perm = game.turnOrder
     for (var j = 0; j < game.players.length; j++) {
-      game.players[j].name = truncateText(names[j] || "Player " + (j + 1), 64, 32)
-      game.players[j].color = playerColors[j]
+      var pid = perm[j]
+      game.players[pid].name = truncateText(names[j] || "Player " + (j + 1), 64, 32)
+      game.players[pid].color = playerColors[j]
     }
     Game.captureStartRecord()
 
@@ -1442,8 +1444,8 @@ UIInstance.prototype.bindActionButtons = function () {
 
   var rollBtn = document.getElementById("roll-btn")
   if (rollBtn) {
-    rollBtn.addEventListener("click", function () {
-      var result = Game.rollDice()
+    rollBtn.addEventListener("click", async function () {
+      var result = await Game.rollDice()
       self._lastTotal = result.total
       self.render()
       if (typeof flashTiles === "function") flashTiles(result.total)
@@ -1619,7 +1621,7 @@ UIInstance.prototype.bindActionButtons = function () {
 
 }
 
-UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
+UIInstance.prototype.onVertexClick = async function (q, r, corner, vKey) {
   var phase = game.phase
   var cp = game.currentPlayer
 
@@ -1673,7 +1675,7 @@ UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
         }
       }
       if (target && target.owner !== undefined) {
-        var stolen = Game.robRandomResource(cp, target.owner)
+        var stolen = await Game.robRandomResource(cp, target.owner)
         if (!this._naturalRobber) Game.playDevCard(cp, this._guardCardIdx)
         if (this._naturalRobber) { this.endPost7Sequence() } else { this._buildMode = null; this._guardCardIdx = null; this.render() }
         if (stolen) {
@@ -1775,7 +1777,7 @@ UIInstance.prototype.onEdgeClick = function (edge) {
   }
 }
 
-UIInstance.prototype.onTileClick = function (q, r) {
+UIInstance.prototype.onTileClick = async function (q, r) {
   if (this._buildMode !== "guard-tile") return
   var cp = game.currentPlayer
   Game.moveRobber(cp, q, r)
@@ -1784,7 +1786,7 @@ UIInstance.prototype.onTileClick = function (q, r) {
   var firstOwner = vertices.length > 0 ? vertices[0].owner : -1
   var singleOwner = vertices.length > 0 && vertices.every(function (v) { return v.owner === firstOwner })
   if (singleOwner) {
-    var stolen = Game.robRandomResource(cp, firstOwner)
+    var stolen = await Game.robRandomResource(cp, firstOwner)
     if (!this._naturalRobber) Game.playDevCard(cp, this._guardCardIdx)
     if (this._naturalRobber) { this.endPost7Sequence() } else { this._buildMode = null; this._guardCardIdx = null; this.render() }
     if (stolen) {

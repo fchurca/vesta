@@ -26,6 +26,7 @@ vesta/
   tsconfig.web.json       Web-specific TS config (compiles to web/core/)
   scripts/
     strip-exports.mjs     Post-process ESM → classic globals
+    bumpver.mjs           Version bump script (run via `node scripts/bumpver.mjs [major|minor|patch]`)
   web/
     core/                 Compiled + stripped globals (generated)
     game.js, board.js, ...
@@ -55,5 +56,5 @@ vesta/
 ## Commands
 
 - `/knead` — Review all modified/new files for integrity, consistency, and correctness. Cross-check function signatures between TS and web JS, verify no dead references or drift, check script load order, and report any issues found.
-- `/bumpver [major|minor|patch]` — Bump the version in `package.json`. Defaults to `patch` if no argument given. Parse the semver, increment the appropriate segment, write it back.
+- `/bumpver [major|minor|patch]` — Run `node scripts/bumpver.mjs [major|minor|patch]` to bump the version in `package.json`, update `package-lock.json`, and print the new version. Defaults to `patch` if no argument given.
 - `/gitdiff` — Run `git diff HEAD`, analyze the changes, and propose a commit message of under 10 lines total. If the version was bumped in the diff, prefix the first line with `vx.y.z: `. Do not stage or commit.
