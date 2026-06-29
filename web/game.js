@@ -71,6 +71,13 @@ var Game = {
           game.players[i].resources.wool + game.players[i].resources.grain + game.players[i].resources.ore
         if (totalRes > 7) discardPlayers.push(i)
       }
+      game.post7Stage = "discarding"
+      game.discardQueue = discardPlayers.slice()
+      game.discardPlayerResources = {}
+      for (var dpi = 0; dpi < discardPlayers.length; dpi++) {
+        var pi = discardPlayers[dpi]
+        game.discardPlayerResources[pi] = { brick: game.players[pi].resources.brick, lumber: game.players[pi].resources.lumber, wool: game.players[pi].resources.wool, grain: game.players[pi].resources.grain, ore: game.players[pi].resources.ore }
+      }
     }
     saveGame()
     return { dice: [d1, d2], total: total, gains: gains, isSeven: isSeven, discardPlayers: discardPlayers }
@@ -79,6 +86,14 @@ var Game = {
   discardResources: function (playerIdx, resources) {
     game = applyMove(game, { type: "discard-resources", player: playerIdx, resources: resources })
     game.currentTurnMoves.push({ type: "discard-resources", player: playerIdx, resources: resources })
+    if (game.discardQueue) {
+      game.discardQueue = game.discardQueue.filter(function (p) { return p !== playerIdx })
+      if (game.discardQueue.length === 0) {
+        game.post7Stage = "moving-robber"
+        game.discardQueue = null
+        game.discardPlayerResources = null
+      }
+    }
     saveGame()
   },
 

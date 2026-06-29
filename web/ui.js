@@ -318,7 +318,6 @@ UIInstance.prototype.showAbout = function () {
 UIInstance.prototype.startPost7Sequence = function (discardPlayers) {
   var self = this
   if (discardPlayers && discardPlayers.length > 0) {
-    self._discardQueue = discardPlayers.slice()
     self.showNextDiscard()
   } else {
     self.forceRobberMode()
@@ -327,12 +326,12 @@ UIInstance.prototype.startPost7Sequence = function (discardPlayers) {
 
 UIInstance.prototype.showNextDiscard = function () {
   var self = this
-  if (!self._discardQueue || self._discardQueue.length === 0) {
-    self._discardQueue = null
+  var queue = game.discardQueue
+  if (!queue || queue.length === 0) {
     self.forceRobberMode()
     return
   }
-  var pIdx = self._discardQueue.shift()
+  var pIdx = queue[0]
   self.showDiscardModal(pIdx, function () {
     self.showNextDiscard()
   })
@@ -341,35 +340,50 @@ UIInstance.prototype.showNextDiscard = function () {
 UIInstance.prototype.showDiscardModal = function (pIdx, onDone) {
   var self = this
   var player = game.players[pIdx]
-  var totalRes = player.resources.brick + player.resources.lumber +
-    player.resources.wool + player.resources.grain + player.resources.ore
+  var storedRes = game.discardPlayerResources && game.discardPlayerResources[pIdx]
+  var origRes = storedRes || player.resources
+  var totalRes = origRes.brick + origRes.lumber + origRes.wool + origRes.grain + origRes.ore
   var mustDiscard = Math.floor(totalRes / 2)
   var selected = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
-  var selectedCount = 0
+  var keys = ["brick", "lumber", "wool", "grain", "ore"]
+
+  function selectedCount() {
+    var n = 0
+    for (var i = 0; i < keys.length; i++) n += selected[keys[i]]
+    return n
+  }
+
+  function chipsHTML() {
+    var html = ""
+    for (var i = 0; i < keys.length; i++) {
+      var r = keys[i]
+      for (var c = 0; c < selected[r]; c++) {
+        html += '<span class="trade-chip" data-discard-res="' + r + '">' + RESOURCE_EMOJI[r] + '</span>'
+      }
+    }
+    if (!html) html = '<span style="color:var(--text-dim);font-size:0.85rem">\u2014</span>'
+    return html
+  }
 
   var overlay = document.createElement("div")
   overlay.className = "modal-overlay"
 
   function render() {
     var html = '<div class="modal" style="text-align:center">'
-    html += '<h2>' + player.name + ' must discard ' + mustDiscard + ' cards</h2>'
-    html += '<p>You have ' + totalRes + ' cards. Discard ' + mustDiscard + '.</p>'
-    html += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0">'
-    var resources = ["brick", "lumber", "wool", "grain", "ore"]
-    for (var ri = 0; ri < resources.length; ri++) {
-      var r = resources[ri]
-      var avail = (player.resources[r] || 0) - selected[r]
-      var chipClass = 'discard-chip' + (selected[r] > 0 ? ' discard-selected' : '')
-      html += '<div style="text-align:center">'
-      html += '<div class="' + chipClass + '" style="opacity:' + (avail > 0 || selected[r] > 0 ? 1 : 0.3) + '" data-discard-res="' + r + '" data-discard-action="add">' + RESOURCE_EMOJI[r] + ' ' + selected[r] + '/' + (player.resources[r] || 0) + '</div>'
-      if (selected[r] > 0) {
-        html += '<div class="discard-remove" data-discard-res="' + r + '" data-discard-action="remove">\u2716 remove</div>'
-      }
-      html += '</div>'
+    html += '<h2>' + player.name + ' must discard ' + mustDiscard + ' resources</h2>'
+    html += '<p>You have ' + totalRes + ' resources. Discard ' + mustDiscard + '.</p>'
+    html += '<div class="trade-selection">' + chipsHTML() + '</div>'
+    html += '<div class="trade-pool">'
+    for (var i = 0; i < keys.length; i++) {
+      var r = keys[i]
+      var avail = (origRes[r] || 0) - selected[r]
+      var disabled = avail <= 0 || selectedCount() >= mustDiscard
+      var style = disabled ? ' style="opacity:0.35;cursor:default;pointer-events:none"' : ''
+      html += '<span class="trade-pool-item"' + style + ' data-discard-pool="' + r + '">' + RESOURCE_EMOJI[r] + ' ' + (origRes[r] || 0) + '</span>'
     }
     html += '</div>'
     html += '<div class="btn-row" style="display:flex;gap:8px;justify-content:center;margin-top:12px">'
-    html += '<button class="btn btn-primary" id="discard-confirm" style="flex:1"' + (selectedCount !== mustDiscard ? ' disabled' : '') + '>Confirm</button>'
+    html += '<button class="btn btn-primary" id="discard-confirm" style="flex:1"' + (selectedCount() !== mustDiscard ? ' disabled' : '') + '>Confirm</button>'
     html += '</div>'
     html += '</div>'
     return html
@@ -379,28 +393,33 @@ UIInstance.prototype.showDiscardModal = function (pIdx, onDone) {
   document.body.appendChild(overlay)
 
   function rebind() {
-    var chips = overlay.querySelectorAll("[data-discard-res]")
+    var chips = overlay.querySelectorAll(".trade-chip[data-discard-res]")
     for (var ci = 0; ci < chips.length; ci++) {
       ;(function (el) {
         el.addEventListener("click", function () {
           var r = el.getAttribute("data-discard-res")
-          var action = el.getAttribute("data-discard-action")
-          if (action === "add") {
-            var avail = (player.resources[r] || 0) - selected[r]
-            if (avail > 0 && selectedCount < mustDiscard) {
-              selected[r]++
-              selectedCount++
-            }
-          } else if (action === "remove") {
-            if (selected[r] > 0) {
-              selected[r]--
-              selectedCount--
-            }
+          if (selected[r] > 0) {
+            selected[r]--
           }
           overlay.innerHTML = render()
           rebind()
         })
       })(chips[ci])
+    }
+
+    var poolItems = overlay.querySelectorAll("[data-discard-pool]")
+    for (var pi = 0; pi < poolItems.length; pi++) {
+      ;(function (el) {
+        el.addEventListener("click", function () {
+          var r = el.getAttribute("data-discard-pool")
+          var avail = (origRes[r] || 0) - selected[r]
+          if (avail > 0 && selectedCount() < mustDiscard) {
+            selected[r]++
+          }
+          overlay.innerHTML = render()
+          rebind()
+        })
+      })(poolItems[pi])
     }
 
     var confirmBtn = document.getElementById("discard-confirm")
@@ -420,6 +439,8 @@ UIInstance.prototype.forceRobberMode = function () {
   this._buildMode = "guard-tile"
   this._naturalRobber = true
   this._guardCardIdx = null
+  game.post7Stage = "moving-robber"
+  saveGame()
   setValidPositions("guard-tile")
   setClickMode("guard-tile")
   this.render()
@@ -430,6 +451,10 @@ UIInstance.prototype.endPost7Sequence = function () {
   this._buildMode = null
   this._naturalRobber = null
   this._guardCardIdx = null
+  game.post7Stage = null
+  game.discardQueue = null
+  game.discardPlayerResources = null
+  saveGame()
   this.render()
 }
 
@@ -1135,6 +1160,14 @@ UIInstance.prototype.showGame = function () {
   document.addEventListener("mouseup", stopHold)
 
   this.render()
+
+  if (game.post7Stage) {
+    if (game.post7Stage === "discarding") {
+      self.showNextDiscard()
+    } else if (game.post7Stage === "moving-robber") {
+      self.forceRobberMode()
+    }
+  }
 }
 
 UIInstance.prototype.render = function () {
