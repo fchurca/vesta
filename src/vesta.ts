@@ -120,6 +120,7 @@ export interface GameState {
   largestArmy: number | null
   longestRoad: number | null
   title: string
+  turnOrder?: number[]
 }
 
 export type GameMove =
@@ -764,24 +765,46 @@ export function rollDice(state: GameState, rng?: () => number): GameState {
 
 export function advanceInitialPlacement(state: GameState): GameState {
   const n = state.players.length
+  const to = state.turnOrder
   let newPhase: GamePhase = state.phase
   let newPlayer = state.currentPlayer
   let newTurn = state.turn
 
   if (state.phase === "initial_first") {
-    if (state.currentPlayer < n - 1) {
-      newPlayer = state.currentPlayer + 1
+    if (to) {
+      const pos = to.indexOf(state.currentPlayer)
+      if (pos < n - 1) {
+        newPlayer = to[pos + 1]!
+      } else {
+        newPhase = "initial_second"
+        newPlayer = to[n - 1]!
+      }
     } else {
-      newPhase = "initial_second"
-      newPlayer = n - 1
+      if (state.currentPlayer < n - 1) {
+        newPlayer = state.currentPlayer + 1
+      } else {
+        newPhase = "initial_second"
+        newPlayer = n - 1
+      }
     }
   } else {
-    if (state.currentPlayer > 0) {
-      newPlayer = state.currentPlayer - 1
+    if (to) {
+      const pos = to.indexOf(state.currentPlayer)
+      if (pos > 0) {
+        newPlayer = to[pos - 1]!
+      } else {
+        newPhase = "play"
+        newPlayer = to[0]!
+        newTurn = 1
+      }
     } else {
-      newPhase = "play"
-      newPlayer = 0
-      newTurn = 1
+      if (state.currentPlayer > 0) {
+        newPlayer = state.currentPlayer - 1
+      } else {
+        newPhase = "play"
+        newPlayer = 0
+        newTurn = 1
+      }
     }
   }
 
@@ -800,7 +823,17 @@ export function nextTurn(state: GameState): GameState {
     return advanceInitialPlacement(state)
   }
 
-  const nextPlayer = (state.currentPlayer + 1) % state.players.length
+  const to = state.turnOrder
+  const n = state.players.length
+  let nextPlayer: number
+
+  if (to) {
+    const pos = to.indexOf(state.currentPlayer)
+    nextPlayer = to[(pos + 1) % n]!
+  } else {
+    nextPlayer = (state.currentPlayer + 1) % n
+  }
+
   const newTurn = state.turn + 1
 
   const newPlayers = state.players.map((p, i) =>

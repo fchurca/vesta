@@ -60,6 +60,19 @@ var Game = {
     game.currentTurnMoves = []
     game.turnOrder = turnPerm
     game.urd = { seed: urdSeed, pools: boardResult.pools, resolutions: [turnResult.resolution, boardResult.resolution] }
+    var deckFlat = []
+    for (var cardType in DEV_CARD_COUNTS) {
+      for (var j = 0; j < DEV_CARD_COUNTS[cardType]; j++) deckFlat.push(cardType)
+    }
+    var deckResult = await resolveRoll(game.urd.pools, urdSeed, URD_MAX_SIDES, allPlayers, "deck-shuffle")
+    var shuffledDeck = seededShuffle(deckFlat, deckResult.roll)
+    game.devDeck = {
+      type: "pool",
+      remaining: shuffledDeck.length,
+      cards: shuffledDeck.map(function (t) { return { cardType: t, available: false } }),
+    }
+    game.urd.pools = deckResult.pools
+    game.urd.resolutions.push(deckResult.resolution)
   },
 
   captureStartRecord: function () {
@@ -380,16 +393,10 @@ var Game = {
 
   nextTurn: function () {
     game.currentTurnMoves.push({ type: "end-turn", player: game.currentPlayer })
-    var prevPhase = game.phase
-    var prevPlayer = game.currentPlayer
     var prevTurn = game.turn
+    var prevPlayer = game.currentPlayer
+    var prevPhase = game.phase
     game = applyMove(game, { type: "end-turn", player: prevPlayer })
-    if (prevPhase === "initial_second" && game.phase === "play" && game.turnOrder) {
-      game.currentPlayer = game.turnOrder[0]
-    } else if (game.phase === "play" && game.turnOrder) {
-      var pos = game.turnOrder.indexOf(prevPlayer)
-      game.currentPlayer = game.turnOrder[(pos + 1) % game.turnOrder.length]
-    }
     if (game.currentTurnMoves.length > 0) {
       game.turns.push({
         turn: prevTurn,
