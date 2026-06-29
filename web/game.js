@@ -91,8 +91,12 @@ var Game = {
   },
 
   placeRoad: function (playerIdx, q1, r1, corner1, q2, r2, corner2, free) {
+    var prev = game.longestRoad
     game = placeRoad(game, playerIdx, q1, r1, corner1, q2, r2, corner2, free)
     game.currentTurnMoves.push({ type: "place-road", player: playerIdx, q1: q1, r1: r1, corner1: corner1, q2: q2, r2: r2, corner2: corner2 })
+    if (game.longestRoad !== prev) {
+      game.currentTurnMoves.push({ type: "longest-road-change", winner: game.longestRoad, loser: prev })
+    }
     saveGame()
   },
 

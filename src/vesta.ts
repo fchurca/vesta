@@ -139,6 +139,7 @@ export type GameMove =
   | { type: "accept-trade"; player: number }
   | { type: "reject-trade"; player: number }
   | { type: "cancel-proposal"; player: number }
+  | { type: "longest-road-change"; winner: number | null; loser: number | null }
 
 export interface GameTurn {
   turn: number
@@ -634,7 +635,7 @@ export function placeSettlement(
     }
   }
 
-  return newState
+  return updateLongestRoad(newState)
 }
 
 export function placeRoad(
@@ -1082,6 +1083,10 @@ export function computeLongestRoad(state: GameState, playerIdx: number): number 
           if (vertexToGraph.has(n)) {
             const otherGi = vertexToGraph.get(n)!
             if (otherGi === gi) continue
+            if (isBlocked(n)) {
+              graph.add(n)
+              continue
+            }
             const other = graphs[otherGi]!
             if (other.size === 0) continue
             for (const v of other) {
@@ -1106,6 +1111,7 @@ export function computeLongestRoad(state: GameState, playerIdx: number): number 
     let idx = 0
     while (idx < queue.length) {
       const v = queue[idx++]!
+      if (isBlocked(v)) continue
       const neighbors = adj.get(v)
       if (!neighbors) continue
       for (const n of neighbors) {
@@ -1129,7 +1135,8 @@ export function computeLongestRoad(state: GameState, playerIdx: number): number 
     const anyNode = graph.values().next().value!
     const first = bfsFarthest(anyNode, graph)
     const second = bfsFarthest(first.node, graph)
-    if (second.dist > longest) longest = second.dist
+    const candidate = first.dist > second.dist ? first.dist : second.dist
+    if (candidate > longest) longest = candidate
   }
 
   return longest
@@ -1137,42 +1144,62 @@ export function computeLongestRoad(state: GameState, playerIdx: number): number 
 
 export function updateLongestRoad(state: GameState): GameState {
   const lengths = state.players.map((_, i) => computeLongestRoad(state, i))
-  let bestIdx = -1
+
   let bestLen = 0
-  let tie = false
   for (let i = 0; i < lengths.length; i++) {
-    if (lengths[i]! >= 5 && lengths[i]! > bestLen) {
-      bestLen = lengths[i]!
-      bestIdx = i
-      tie = false
-    } else if (lengths[i]! === bestLen && lengths[i]! >= 5) {
-      tie = true
-    }
+    if (lengths[i]! > bestLen) bestLen = lengths[i]!
   }
 
-  let newLongestRoad = state.longestRoad
-  let newPlayers = state.players
+  if (bestLen < 5) {
+    if (state.longestRoad !== null) {
+      return {
+        ...state,
+        players: state.players.map((p, i) =>
+          i === state.longestRoad ? { ...p, vp: p.vp - 2 } : p
+        ),
+        longestRoad: null,
+      }
+    }
+    return state
+  }
 
-  if (bestLen >= 5 && !tie) {
-    if (newLongestRoad !== bestIdx) {
-      if (newLongestRoad !== null) {
+  const leaders: number[] = []
+  for (let i = 0; i < lengths.length; i++) {
+    if (lengths[i] === bestLen) leaders.push(i)
+  }
+
+  if (leaders.length === 1) {
+    const newHolder = leaders[0]!
+    if (newHolder !== state.longestRoad) {
+      let newPlayers = state.players
+      if (state.longestRoad !== null) {
         newPlayers = newPlayers.map((p, i) =>
-          i === newLongestRoad ? { ...p, vp: p.vp - 2 } : p
+          i === state.longestRoad ? { ...p, vp: p.vp - 2 } : p
         )
       }
       newPlayers = newPlayers.map((p, i) =>
-        i === bestIdx ? { ...p, vp: p.vp + 2 } : p
+        i === newHolder ? { ...p, vp: p.vp + 2 } : p
       )
-      newLongestRoad = bestIdx
+      return { ...state, players: newPlayers, longestRoad: newHolder }
     }
-  } else if (newLongestRoad !== null) {
-    newPlayers = newPlayers.map((p, i) =>
-      i === newLongestRoad ? { ...p, vp: p.vp - 2 } : p
-    )
-    newLongestRoad = null
+    return state
   }
 
-  return { ...state, players: newPlayers, longestRoad: newLongestRoad }
+  if (state.longestRoad !== null && leaders.includes(state.longestRoad)) {
+    return state
+  }
+
+  if (state.longestRoad !== null) {
+    return {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === state.longestRoad ? { ...p, vp: p.vp - 2 } : p
+      ),
+      longestRoad: null,
+    }
+  }
+
+  return state
 }
 
 export function moveRobber(state: GameState, q: number, r: number): GameState {
@@ -1487,6 +1514,8 @@ export function applyMove(state: GameState, move: GameMove): GameState {
       if (move.player !== state.pendingTrade.from) throw new Error("Only the proposer can cancel")
       return { ...state, pendingTrade: null }
     }
+    case "longest-road-change":
+      return state
   }
 }
 
@@ -1586,6 +1615,14 @@ export function deriveLog(record: GameRecord): string[] {
           break
         case "cancel-proposal":
           out.push(names[move.player] + " canceled the trade")
+          break
+        case "longest-road-change":
+          if (move.winner !== null && move.loser !== null)
+            out.push(names[move.winner] + " took the longest road from " + names[move.loser])
+          else if (move.winner !== null)
+            out.push(names[move.winner] + " gained the longest road")
+          else if (move.loser !== null)
+            out.push(names[move.loser] + " lost the longest road")
           break
       }
     }

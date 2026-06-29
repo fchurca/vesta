@@ -1658,6 +1658,12 @@ UIInstance.prototype.renderLog = function () {
         return names[move.player] + " moved the robber"
       case "steal-resource":
         return names[move.player] + " stole " + move.resource + " from " + names[move.victim]
+      case "longest-road-change":
+        if (move.winner !== null && move.loser !== null)
+          return names[move.winner] + " took the longest road from " + names[move.loser]
+        if (move.winner !== null)
+          return names[move.winner] + " gained the longest road"
+        return names[move.loser] + " lost the longest road"
     }
     return ""
   }

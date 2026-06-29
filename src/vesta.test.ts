@@ -1475,6 +1475,45 @@ describe("deriveLog", () => {
     const log = deriveLog(record)
     ok(log.some(m => m.includes("played year of plenty")))
   })
+
+  it("includes longest-road-change message for gain", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "longest-road-change", winner: 1, loser: null }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("Player 2 gained the longest road")))
+  })
+
+  it("includes longest-road-change message for transfer", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "longest-road-change", winner: 2, loser: 0 }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("Player 3 took the longest road from Player 1")))
+  })
+
+  it("includes longest-road-change message for loss (tie)", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "longest-road-change", winner: null, loser: 0 }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("Player 1 lost the longest road")))
+  })
 })
 
 describe("truncateText", () => {
@@ -1802,6 +1841,20 @@ describe("computeLongestRoad", () => {
     g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5)
     equal(computeLongestRoad(g, 0), 0)
   })
+
+  it("splits chain at opponent settlement with two anchor settlements", () => {
+    let g = makeState()
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1, true)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2, true)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3, true)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4, true)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5, true)
+    g = placeSettlement(g, 0, 0, 0, 5)
+    equal(computeLongestRoad(g, 0), 5)
+    g = placeSettlement(g, 1, 0, 0, 3)
+    equal(computeLongestRoad(g, 0), 3)
+  })
 })
 
 describe("updateLongestRoad", () => {
@@ -1842,7 +1895,7 @@ describe("updateLongestRoad", () => {
     equal(g.players[0]!.vp, vp0 - 2)
   })
 
-  it("removes VP on tie", () => {
+  it("retains longest road on tie when incumbent is in the tie", () => {
     let g = makeState()
     g = { ...g, phase: "play" }
     g = placeSettlement(g, 0, 0, 0, 0)
@@ -1859,8 +1912,33 @@ describe("updateLongestRoad", () => {
     g = placeRoad(g, 1, 2, 0, 2, 2, 0, 3, true)
     g = placeRoad(g, 1, 2, 0, 3, 2, 0, 4, true)
     g = placeRoad(g, 1, 2, 0, 4, 2, 0, 5, true)
-    equal(g.longestRoad, null)
+    equal(g.longestRoad, 0)
+    equal(g.players[0]!.vp, vp0)
+  })
+
+  it("loses longest road when settlement cuts incumbent from tie", () => {
+    let g = makeState()
+    g = { ...g, phase: "play" }
+    g = placeSettlement(g, 0, 0, 0, 0)
+    g = placeRoad(g, 0, 0, 0, 0, 0, 0, 1, true)
+    g = placeRoad(g, 0, 0, 0, 1, 0, 0, 2, true)
+    g = placeRoad(g, 0, 0, 0, 2, 0, 0, 3, true)
+    g = placeRoad(g, 0, 0, 0, 3, 0, 0, 4, true)
+    g = placeRoad(g, 0, 0, 0, 4, 0, 0, 5, true)
+    equal(g.longestRoad, 0)
+    const vp0 = g.players[0]!.vp
+    g = placeSettlement(g, 1, 2, 0, 0)
+    g = placeRoad(g, 1, 2, 0, 0, 2, 0, 1, true)
+    g = placeRoad(g, 1, 2, 0, 1, 2, 0, 2, true)
+    g = placeRoad(g, 1, 2, 0, 2, 2, 0, 3, true)
+    g = placeRoad(g, 1, 2, 0, 3, 2, 0, 4, true)
+    g = placeRoad(g, 1, 2, 0, 4, 2, 0, 5, true)
+    equal(g.longestRoad, 0)
+    const vp1 = g.players[1]!.vp
+    g = placeSettlement(g, 2, 0, 0, 3)
+    equal(g.longestRoad, 1)
     equal(g.players[0]!.vp, vp0 - 2)
+    equal(g.players[1]!.vp, vp1 + 2)
   })
 })
 
