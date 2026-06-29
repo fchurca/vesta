@@ -315,6 +315,124 @@ UIInstance.prototype.showAbout = function () {
   })
 }
 
+UIInstance.prototype.startPost7Sequence = function (discardPlayers) {
+  var self = this
+  if (discardPlayers && discardPlayers.length > 0) {
+    self._discardQueue = discardPlayers.slice()
+    self.showNextDiscard()
+  } else {
+    self.forceRobberMode()
+  }
+}
+
+UIInstance.prototype.showNextDiscard = function () {
+  var self = this
+  if (!self._discardQueue || self._discardQueue.length === 0) {
+    self._discardQueue = null
+    self.forceRobberMode()
+    return
+  }
+  var pIdx = self._discardQueue.shift()
+  self.showDiscardModal(pIdx, function () {
+    self.showNextDiscard()
+  })
+}
+
+UIInstance.prototype.showDiscardModal = function (pIdx, onDone) {
+  var self = this
+  var player = game.players[pIdx]
+  var totalRes = player.resources.brick + player.resources.lumber +
+    player.resources.wool + player.resources.grain + player.resources.ore
+  var mustDiscard = Math.floor(totalRes / 2)
+  var selected = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 }
+  var selectedCount = 0
+
+  var overlay = document.createElement("div")
+  overlay.className = "modal-overlay"
+
+  function render() {
+    var html = '<div class="modal" style="text-align:center">'
+    html += '<h2>' + player.name + ' must discard ' + mustDiscard + ' cards</h2>'
+    html += '<p>You have ' + totalRes + ' cards. Discard ' + mustDiscard + '.</p>'
+    html += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0">'
+    var resources = ["brick", "lumber", "wool", "grain", "ore"]
+    for (var ri = 0; ri < resources.length; ri++) {
+      var r = resources[ri]
+      var avail = (player.resources[r] || 0) - selected[r]
+      var chipClass = 'discard-chip' + (selected[r] > 0 ? ' discard-selected' : '')
+      html += '<div style="text-align:center">'
+      html += '<div class="' + chipClass + '" style="opacity:' + (avail > 0 || selected[r] > 0 ? 1 : 0.3) + '" data-discard-res="' + r + '" data-discard-action="add">' + RESOURCE_EMOJI[r] + ' ' + selected[r] + '/' + (player.resources[r] || 0) + '</div>'
+      if (selected[r] > 0) {
+        html += '<div class="discard-remove" data-discard-res="' + r + '" data-discard-action="remove">\u2716 remove</div>'
+      }
+      html += '</div>'
+    }
+    html += '</div>'
+    html += '<div class="btn-row" style="display:flex;gap:8px;justify-content:center;margin-top:12px">'
+    html += '<button class="btn btn-primary" id="discard-confirm" style="flex:1"' + (selectedCount !== mustDiscard ? ' disabled' : '') + '>Confirm</button>'
+    html += '</div>'
+    html += '</div>'
+    return html
+  }
+
+  overlay.innerHTML = render()
+  document.body.appendChild(overlay)
+
+  function rebind() {
+    var chips = overlay.querySelectorAll("[data-discard-res]")
+    for (var ci = 0; ci < chips.length; ci++) {
+      ;(function (el) {
+        el.addEventListener("click", function () {
+          var r = el.getAttribute("data-discard-res")
+          var action = el.getAttribute("data-discard-action")
+          if (action === "add") {
+            var avail = (player.resources[r] || 0) - selected[r]
+            if (avail > 0 && selectedCount < mustDiscard) {
+              selected[r]++
+              selectedCount++
+            }
+          } else if (action === "remove") {
+            if (selected[r] > 0) {
+              selected[r]--
+              selectedCount--
+            }
+          }
+          overlay.innerHTML = render()
+          rebind()
+        })
+      })(chips[ci])
+    }
+
+    var confirmBtn = document.getElementById("discard-confirm")
+    if (confirmBtn && !confirmBtn.disabled) {
+      confirmBtn.addEventListener("click", function () {
+        document.body.removeChild(overlay)
+        Game.discardResources(pIdx, { brick: selected.brick, lumber: selected.lumber, wool: selected.wool, grain: selected.grain, ore: selected.ore })
+        onDone()
+      })
+    }
+  }
+
+  rebind()
+}
+
+UIInstance.prototype.forceRobberMode = function () {
+  this._buildMode = "guard-tile"
+  this._naturalRobber = true
+  this._guardCardIdx = null
+  setValidPositions("guard-tile")
+  setClickMode("guard-tile")
+  this.render()
+  this.showToast("Rolled 7! Move the robber.")
+}
+
+UIInstance.prototype.endPost7Sequence = function () {
+  this._buildMode = null
+  this._naturalRobber = null
+  this._guardCardIdx = null
+  this.render()
+}
+
 function backfillPlayerRates() {
   for (var p = 0; p < game.players.length; p++) {
     game.players[p].rates = computeRates(game, p)
@@ -1156,7 +1274,7 @@ UIInstance.prototype.renderActions = function () {
 
     html += '</span>'
     html += '<span class="btn-row-right">'
-    html += '<button class="btn" id="end-turn-btn" title="End turn" style="background:' + nextColor + '"' + (game.rolled ? "" : " disabled") + '>⏭️</button>'
+    html += '<button class="btn" id="end-turn-btn" title="End turn" style="background:' + nextColor + '"' + (game.rolled && !this._naturalRobber ? "" : " disabled") + '>⏭️</button>'
     html += '</span>'
     html += '</div>'
 
@@ -1186,7 +1304,7 @@ UIInstance.prototype.renderActions = function () {
       var roadLabel = this._roadBuildPlaced === 0 ? "Click edge for first free road" : "Click edge for second free road"
       html += '<div id="build-status">' + roadLabel + ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
     } else if (this._buildMode === "guard-tile") {
-      html += '<div id="build-status">Click a tile to move the robber <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span></div>'
+      html += '<div id="build-status">' + (this._naturalRobber ? 'Rolled 7! ' : '') + 'Click a tile to move the robber' + (this._naturalRobber ? '' : ' <span id="cancel-build-btn" style="cursor:pointer;background:var(--border);border-radius:3px;padding:1px 8px;margin-left:4px">or cancel \u274C</span>') + '</div>'
     } else if (this._buildMode === "guard-victim") {
       html += '<div id="build-status">Click a settlement or city to rob</div>'
     } else if (this._buildMode) {
@@ -1252,6 +1370,11 @@ UIInstance.prototype.renderActions = function () {
 
   actions.innerHTML = html
 
+  if (this._naturalRobber) {
+    var disabledBtns = actions.querySelectorAll("#trade-btn, #build-road, #build-settlement, #build-city, #buy-dev-card, .dev-card")
+    for (var db = 0; db < disabledBtns.length; db++) disabledBtns[db].disabled = true
+  }
+
   bindPlayerCards(actions)
   this.bindActionButtons()
 }
@@ -1296,6 +1419,9 @@ UIInstance.prototype.bindActionButtons = function () {
           return game.players[g.player].name + " +" + g.amount + " " + RESOURCE_EMOJI[g.resource]
         })
         self.showToast(msgs.join(", "))
+      }
+      if (result.isSeven) {
+        self.startPost7Sequence(result.discardPlayers)
       }
     })
   }
@@ -1443,6 +1569,7 @@ UIInstance.prototype.bindActionButtons = function () {
   var cancelBtn = document.getElementById("cancel-build-btn")
   if (cancelBtn) {
     cancelBtn.addEventListener("click", function () {
+      if (self._naturalRobber) return
       if (self._buildMode === "road-card") {
         if (self._roadBuildPlaced > 0) {
           Game.consumeRoadBuildCard(game.currentPlayer)
@@ -1514,10 +1641,8 @@ UIInstance.prototype.onVertexClick = function (q, r, corner, vKey) {
       }
       if (target && target.owner !== undefined) {
         var stolen = Game.robRandomResource(cp, target.owner)
-        Game.playDevCard(cp, this._guardCardIdx)
-        this._buildMode = null
-        this._guardCardIdx = null
-        this.render()
+        if (!this._naturalRobber) Game.playDevCard(cp, this._guardCardIdx)
+        if (this._naturalRobber) { this.endPost7Sequence() } else { this._buildMode = null; this._guardCardIdx = null; this.render() }
         if (stolen) {
           this.showToast("Stole " + RESOURCE_EMOJI[stolen] + " from " + game.players[target.owner].name)
         } else {
@@ -1627,10 +1752,8 @@ UIInstance.prototype.onTileClick = function (q, r) {
   var singleOwner = vertices.length > 0 && vertices.every(function (v) { return v.owner === firstOwner })
   if (singleOwner) {
     var stolen = Game.robRandomResource(cp, firstOwner)
-    Game.playDevCard(cp, this._guardCardIdx)
-    this._buildMode = null
-    this._guardCardIdx = null
-    this.render()
+    if (!this._naturalRobber) Game.playDevCard(cp, this._guardCardIdx)
+    if (this._naturalRobber) { this.endPost7Sequence() } else { this._buildMode = null; this._guardCardIdx = null; this.render() }
     if (stolen) {
       this.showToast("Stole " + RESOURCE_EMOJI[stolen] + " from " + game.players[firstOwner].name)
     } else {
@@ -1646,11 +1769,9 @@ UIInstance.prototype.onTileClick = function (q, r) {
     this.render()
     this.showToast("Choose a player to rob")
   } else {
-    Game.playDevCard(cp, this._guardCardIdx)
-    this._buildMode = null
-    this._guardCardIdx = null
-    this.render()
-    this.showToast("No one to rob — card played")
+    if (!this._naturalRobber) Game.playDevCard(cp, this._guardCardIdx)
+    if (this._naturalRobber) { this.endPost7Sequence() } else { this._buildMode = null; this._guardCardIdx = null; this.render() }
+    this.showToast("No one to rob — robber moved")
   }
 }
 

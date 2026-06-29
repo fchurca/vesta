@@ -1248,6 +1248,25 @@ describe("applyMove", () => {
     equal(next.players[0]!.resources[Resource.Ore], 1)
     equal(next.players[0]!.hand.length, 0)
   })
+
+  it("discard-resources deducts resources from player", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[0]!.resources[Resource.Lumber] = 3
+    const next = applyMove(g, { type: "discard-resources", player: 0, resources: { brick: 2, lumber: 1, wool: 0, grain: 0, ore: 0 } })
+    equal(next.players[0]!.resources[Resource.Brick], 3)
+    equal(next.players[0]!.resources[Resource.Lumber], 2)
+    equal(next.players[0]!.resources[Resource.Wool], 0)
+  })
+
+  it("discard-resources only affects specified player", () => {
+    let g = makeState()
+    g.players[0]!.resources[Resource.Brick] = 5
+    g.players[1]!.resources[Resource.Brick] = 5
+    const next = applyMove(g, { type: "discard-resources", player: 0, resources: { brick: 2, lumber: 0, wool: 0, grain: 0, ore: 0 } })
+    equal(next.players[0]!.resources[Resource.Brick], 3)
+    equal(next.players[1]!.resources[Resource.Brick], 5)
+  })
 })
 
 describe("replayRecord", () => {
@@ -1513,6 +1532,21 @@ describe("deriveLog", () => {
     const record: GameRecord = { startState: start2, turns: [turn], endState: g }
     const log = deriveLog(record)
     ok(log.some(m => m.includes("Player 1 lost the longest road")))
+  })
+
+  it("includes discard-resources message", () => {
+    const g = makeState()
+    const turn: GameTurn = {
+      turn: 1, player: 0, phase: "play",
+      moves: [{ type: "discard-resources", player: 0, resources: { brick: 2, lumber: 1, wool: 0, grain: 0, ore: 0 } }],
+    }
+    const start = makeState()
+    const start2 = { ...start, phase: "play", turn: 1 } as typeof start
+    const record: GameRecord = { startState: start2, turns: [turn], endState: g }
+    const log = deriveLog(record)
+    ok(log.some(m => m.includes("Player 1 discarded")))
+    ok(log.some(m => m.includes("2 brick")))
+    ok(log.some(m => m.includes("1 lumber")))
   })
 })
 

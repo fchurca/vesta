@@ -63,8 +63,23 @@ var Game = {
     var gains = produce(game, total)
     game = applyMove(game, { type: "roll-dice", player: game.currentPlayer, dice: [d1, d2] })
     game.currentTurnMoves.push({ type: "roll-dice", player: game.currentPlayer, dice: [d1, d2] })
+    var isSeven = total === 7
+    var discardPlayers = []
+    if (isSeven) {
+      for (var i = 0; i < game.players.length; i++) {
+        var totalRes = game.players[i].resources.brick + game.players[i].resources.lumber +
+          game.players[i].resources.wool + game.players[i].resources.grain + game.players[i].resources.ore
+        if (totalRes > 7) discardPlayers.push(i)
+      }
+    }
     saveGame()
-    return { dice: [d1, d2], total: total, gains: gains }
+    return { dice: [d1, d2], total: total, gains: gains, isSeven: isSeven, discardPlayers: discardPlayers }
+  },
+
+  discardResources: function (playerIdx, resources) {
+    game = applyMove(game, { type: "discard-resources", player: playerIdx, resources: resources })
+    game.currentTurnMoves.push({ type: "discard-resources", player: playerIdx, resources: resources })
+    saveGame()
   },
 
   tileAt: function (q, r) {

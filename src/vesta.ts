@@ -140,6 +140,7 @@ export type GameMove =
   | { type: "reject-trade"; player: number }
   | { type: "cancel-proposal"; player: number }
   | { type: "longest-road-change"; winner: number | null; loser: number | null }
+  | { type: "discard-resources"; player: number; resources: Record<TradeResource, number> }
 
 export interface GameTurn {
   turn: number
@@ -1514,6 +1515,18 @@ export function applyMove(state: GameState, move: GameMove): GameState {
       if (move.player !== state.pendingTrade.from) throw new Error("Only the proposer can cancel")
       return { ...state, pendingTrade: null }
     }
+    case "discard-resources": {
+      const player = state.players[move.player]!
+      const newRes = { ...player.resources }
+      for (const r in move.resources) {
+        const res = r as TradeResource
+        const amount = move.resources[res]!
+        newRes[res] = (newRes[res] ?? 0) - amount
+      }
+      const newPlayers = [...state.players]
+      newPlayers[move.player] = { ...player, resources: newRes }
+      return { ...state, players: newPlayers }
+    }
     case "longest-road-change":
       return state
   }
@@ -1616,6 +1629,15 @@ export function deriveLog(record: GameRecord): string[] {
         case "cancel-proposal":
           out.push(names[move.player] + " canceled the trade")
           break
+        case "discard-resources": {
+          const parts: string[] = []
+          for (const r in move.resources) {
+            const c = move.resources[r as TradeResource]!
+            if (c > 0) parts.push(c + " " + r)
+          }
+          out.push(names[move.player] + " discarded " + parts.join(", "))
+          break
+        }
         case "longest-road-change":
           if (move.winner !== null && move.loser !== null)
             out.push(names[move.winner] + " took the longest road from " + names[move.loser])
