@@ -81,6 +81,9 @@ UIInstance.prototype.init = function () {
       case "save":
         exportGameRecord()
         break
+      case "about":
+        self.showAbout()
+        break
     }
   })
 
@@ -251,6 +254,7 @@ UIInstance.prototype.showLanding = function () {
         savedHTML +
         '<button class="btn" id="landing-new">⭐ New Game</button>' +
         '<button class="btn" id="landing-load">📁 Load Game</button>' +
+        '<button class="btn" id="landing-about">📖 About</button>' +
       '</div>' +
     '</div>'
 
@@ -272,6 +276,10 @@ UIInstance.prototype.showLanding = function () {
     })
   })
 
+  document.getElementById("landing-about").addEventListener("click", function () {
+    self.showAbout()
+  })
+
   if (saved) {
     document.getElementById("restore-btn").addEventListener("click", function () {
       game = saved.game
@@ -288,6 +296,23 @@ UIInstance.prototype.showLanding = function () {
       for (var i = 0; i < btns.length; i++) btns[i].classList.add("hidden")
     })
   }
+}
+
+UIInstance.prototype.showAbout = function () {
+  var self = this
+  this.appEl.innerHTML =
+    '<div id="about">' +
+      '<h2>About VESTA</h2>' +
+      '<p>VESTA is a web adaptation of the classic Settlers of Catan board game, where 2–4 players compete to build settlements, cities, and roads on the island of VESTA. Players collect and trade resources — brick, lumber, wool, grain, and ore — to expand their civilization, develop new technologies, and earn victory points. The first player to reach 10 victory points wins.</p>' +
+      '<h3>Gameplay</h3>' +
+      '<p>The game begins with each player placing two settlements and two connecting roads on the board. On each turn, a player rolls two dice to determine which tiles produce resources. Players with settlements or cities adjacent to the rolled tile collect the corresponding resource. A roll of 7 triggers the robber: players with more than 7 resources must discard half, and the active player moves the robber to block a tile and steal one resource from an opponent building on that tile.</p>' +
+      '<p>Resources can be used to build roads, settlements (which upgrade to cities for double production), and development cards. Development cards include knights (which can activate the robber), monopoly (take all of one resource from opponents), year of plenty (draw two resources), road building (place two free roads), and victory points. The player with the largest army (3+ knights) gains +2 victory points. The player with the longest continuous road (5+ segments) also gains +2 victory points.</p>' +
+      '<p>Players may trade resources with each other or with the bank at published exchange rates. Ports around the board offer improved trade rates for specific resources.</p>' +
+      '<button class="btn btn-primary" id="about-back">Back</button>' +
+    '</div>'
+  document.getElementById("about-back").addEventListener("click", function () {
+    self.showLanding()
+  })
 }
 
 function backfillPlayerRates() {
@@ -1137,18 +1162,17 @@ UIInstance.prototype.renderActions = function () {
 
     html += playerCompactHTML(game.currentPlayer)
 
-    html += '<div class="phase-label" style="margin-top:4px">⚖Trade</div>'
-    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade</button>'
-    if (cp.rates) {
-      html += '<div style="font-size:0.8rem;margin-top:2px;text-align:center">'
-      html += '⚖: '
-      html += RESOURCE_EMOJI.brick + cp.rates.brick + ' '
-      html += RESOURCE_EMOJI.lumber + cp.rates.lumber + ' '
-      html += RESOURCE_EMOJI.wool + cp.rates.wool + ' '
-      html += RESOURCE_EMOJI.grain + cp.rates.grain + ' '
-      html += RESOURCE_EMOJI.ore + cp.rates.ore
-      html += '</div>'
-    }
+    html += '<button class="btn" id="trade-btn"' + (!game.rolled || !cpHasRes(cp) ? ' disabled' : '') + '>⚖ Trade' +
+      (cp.rates
+        ? '<span style="font-size:0.75rem;display:block">' +
+          RESOURCE_EMOJI.brick + cp.rates.brick + ' ' +
+          RESOURCE_EMOJI.lumber + cp.rates.lumber + ' ' +
+          RESOURCE_EMOJI.wool + cp.rates.wool + ' ' +
+          RESOURCE_EMOJI.grain + cp.rates.grain + ' ' +
+          RESOURCE_EMOJI.ore + cp.rates.ore +
+        '</span>'
+        : '') +
+    '</button>'
 
     html += '<div class="phase-label" style="margin-top:4px">🔨Build</div>'
     html += '<div class="btn-row">'
