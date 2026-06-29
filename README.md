@@ -14,19 +14,22 @@ License: see [LICENSE](./LICENSE) file (BSD 2-Clause).
 
 Relies on [URD](https://github.com/fchurca/urd) for verifiable randomness.
 
-## Work in Progress
+## Features
 
-- Basic random board generation
-- Settlements, cities, and roads
+### Implemented
+- Deterministic board generation with configurable seed
+- Settlement, city, and road building (resource costs, distance rule, connectivity)
+- Dice rolling with resource production
+- 7-roll robber flow (discard modal → robber movement → steal)
+- Bank and player-to-player trading with port rates
+- Development cards (knight, victory point, monopoly, year of plenty, road building)
+- Largest Army and Longest Road bonus victory points
+- Hot-seat local play with save/resume
 
-## Planned features
-
+### Planned
 - Nostr webclient (nip-XX event types for game actions)
-- Board generation (deterministic, verifiable via URD rolls)
-- Dice rolls via URD
-- Trading (direct and bank)
-- Development cards — private draws from shared deck (commutative primitives Soon™)
-- Robber
+- Verifiable dice rolls and board generation via URD
+- Cryptographically private development card draws
 
 ## Links
 

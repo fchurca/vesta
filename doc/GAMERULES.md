@@ -40,7 +40,7 @@ When a tile's number is rolled, each player with a building on a vertex of that 
 
 ### Discarding
 
-When a 7 is rolled, any player with **more than 7** resource cards must discard half (rounded down). Discarded cards are returned to the bank.
+When a 7 is rolled, any player with **more than 7** resources must discard half (rounded down). Discarded resources are returned to the bank.
 
 ## Building
 
