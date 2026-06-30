@@ -59,6 +59,7 @@ var Game = {
     game.turns = []
     game.currentTurnMoves = []
     game.turnOrder = turnPerm
+    game.currentPlayer = turnPerm[0]
     game.urd = { seed: urdSeed, pools: boardResult.pools, resolutions: [turnResult.resolution, boardResult.resolution] }
     var deckFlat = []
     for (var cardType in DEV_CARD_COUNTS) {
