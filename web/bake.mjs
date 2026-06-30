@@ -6,6 +6,7 @@ const ROOT = resolve(import.meta.dirname, "..")
 const WEB = resolve(import.meta.dirname)
 const DIST = resolve(WEB, "dist")
 const INDEX = resolve(WEB, "index.html")
+const FAVICON = resolve(WEB, "favicon.svg")
 const STYLE = resolve(WEB, "style.css")
 const CORE_JS = resolve(WEB, "core", "vesta.js")
 const GAME_JS = resolve(WEB, "game.js")
@@ -24,6 +25,10 @@ html = html.replaceAll("{{VER}}", pkg.version)
 const css = readFileSync(STYLE, "utf-8")
 html = html.replace('<link rel="stylesheet" href="style.css">', `<style>${css}</style>`)
 
+const svg = readFileSync(FAVICON, "utf-8")
+const encoded = encodeURIComponent(svg)
+html = html.replace('<link rel="icon" type="image/svg+xml" href="favicon.svg">', `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encoded}">`)
+
 execSync("npm run compile", { cwd: ROOT, stdio: "inherit" })
 
 const replaceScript = (src, filePath) => {
@@ -32,6 +37,7 @@ const replaceScript = (src, filePath) => {
 }
 
 replaceScript("core/vesta.js", CORE_JS)
+replaceScript("urd-local.js", resolve(WEB, "urd-local.js"))
 replaceScript("game.js", GAME_JS)
 replaceScript("board.js", BOARD_JS)
 replaceScript("storage.js", STORAGE_JS)
