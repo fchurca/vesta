@@ -181,6 +181,7 @@ h2 {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  touch-action: none;
   display: block;
   border-radius: 8px;
   cursor: pointer;
@@ -865,9 +866,11 @@ h2 {
 
   #board-container canvas {
     max-width: 100%;
-    height: auto;
-    width: auto;
-    object-fit: none;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    touch-action: none;
   }
 
   #status-bar, #panel {

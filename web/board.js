@@ -87,11 +87,19 @@ function initBoard(canvas, callbacks) {
   for (var k in _vertexCache) _allVertices.push(_vertexCache[k])
   for (var ek in _edgeCache) _allEdges.push(_edgeCache[ek])
 
+  function onTouchStart(e) { e.preventDefault(); var t = e.touches[0]; onMouseDown({ clientX: t.clientX, clientY: t.clientY }) }
+  function onTouchMove(e) { e.preventDefault(); var t = e.touches[0]; onMouseMove({ clientX: t.clientX, clientY: t.clientY }) }
+  function onTouchEnd(e) { e.preventDefault(); var t = e.changedTouches[0]; onMouseUp({ clientX: t.clientX, clientY: t.clientY }) }
+
   _canvas.addEventListener("mousedown", function (e) { onMouseDown(e) })
   _canvas.addEventListener("mousemove", function (e) { onMouseMove(e) })
   _canvas.addEventListener("mouseup", function (e) { onMouseUp(e) })
   _canvas.addEventListener("mouseleave", function () { onMouseLeave() })
   _canvas.addEventListener("wheel", function (e) { onWheel(e) }, { passive: false })
+  _canvas.addEventListener("touchstart", onTouchStart, { passive: false })
+  _canvas.addEventListener("touchmove", onTouchMove, { passive: false })
+  _canvas.addEventListener("touchend", onTouchEnd, { passive: false })
+  _canvas.addEventListener("touchcancel", function () { onMouseLeave() })
 
   resetView()
   drawBoard()
@@ -127,30 +135,36 @@ function worldToScreen(wx, wy) {
   }
 }
 
-function onMouseDown(e) {
+function getCanvasCoords(clientX, clientY) {
   var rect = _canvas.getBoundingClientRect()
-  var sx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width)
-  var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
+  var scale = Math.min(rect.width / CANVAS_WIDTH, rect.height / CANVAS_HEIGHT)
+  var offsetX = (rect.width - CANVAS_WIDTH * scale) / 2
+  var offsetY = (rect.height - CANVAS_HEIGHT * scale) / 2
+  return {
+    sx: (clientX - rect.left - offsetX) / scale,
+    sy: (clientY - rect.top - offsetY) / scale,
+  }
+}
 
-  _panState = { startSx: sx, startSy: sy, startCx: view.cx, startCy: view.cy }
+function onMouseDown(e) {
+  var c = getCanvasCoords(e.clientX, e.clientY)
+  _panState = { startSx: c.sx, startSy: c.sy, startCx: view.cx, startCy: view.cy }
   _canvas.style.cursor = "grabbing"
 }
 
 function onMouseMove(e) {
-  var rect = _canvas.getBoundingClientRect()
-  var sx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width)
-  var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
+  var c = getCanvasCoords(e.clientX, e.clientY)
 
   if (_panState) {
-    var dx = (sx - _panState.startSx) / view.scale
-    var dy = (sy - _panState.startSy) / view.scale
+    var dx = (c.sx - _panState.startSx) / view.scale
+    var dy = (c.sy - _panState.startSy) / view.scale
     view.cx = _panState.startCx - dx
     view.cy = _panState.startCy - dy
     drawBoard()
     return
   }
 
-  var w = screenToWorld(sx, sy)
+  var w = screenToWorld(c.sx, c.sy)
   var vMultiplier = _clickMode === "guard-victim" ? 2.5 : 1
   var nearestV = findNearestVertex(w.x, w.y, vMultiplier)
   var nearestE = findNearestEdge(w.x, w.y)
@@ -168,11 +182,9 @@ function onMouseMove(e) {
 
 function onMouseUp(e) {
   if (_panState) {
-    var rect = _canvas.getBoundingClientRect()
-    var sx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width)
-    var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
-    var dx = sx - _panState.startSx
-    var dy = sy - _panState.startSy
+    var c = getCanvasCoords(e.clientX, e.clientY)
+    var dx = c.sx - _panState.startSx
+    var dy = c.sy - _panState.startSy
 
     _panState = null
     _canvas.style.cursor = "grab"
@@ -193,29 +205,24 @@ function onMouseLeave() {
 
 function onWheel(e) {
   e.preventDefault()
-  var rect = _canvas.getBoundingClientRect()
-  var sx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width)
-  var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
+  var c = getCanvasCoords(e.clientX, e.clientY)
 
   var delta = e.deltaY > 0 ? 0.9 : 1.1
   var newScale = Math.max(0.5, Math.min(5, view.scale * delta))
 
-  var wx = (sx - CANVAS_WIDTH / 2) / view.scale + view.cx
-  var wy = (sy - CANVAS_HEIGHT / 2) / view.scale + view.cy
+  var wx = (c.sx - CANVAS_WIDTH / 2) / view.scale + view.cx
+  var wy = (c.sy - CANVAS_HEIGHT / 2) / view.scale + view.cy
 
-  view.cx = wx - (sx - CANVAS_WIDTH / 2) / newScale
-  view.cy = wy - (sy - CANVAS_HEIGHT / 2) / newScale
+  view.cx = wx - (c.sx - CANVAS_WIDTH / 2) / newScale
+  view.cy = wy - (c.sy - CANVAS_HEIGHT / 2) / newScale
   view.scale = newScale
 
   drawBoard()
 }
 
 function onCanvasClick(e) {
-  var rect = _canvas.getBoundingClientRect()
-  var sx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width)
-  var sy = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height)
-
-  var w = screenToWorld(sx, sy)
+  var c = getCanvasCoords(e.clientX, e.clientY)
+  var w = screenToWorld(c.sx, c.sy)
 
   if (_clickMode === "guard-tile") {
     var nearestT = findNearestTile(w.x, w.y)
