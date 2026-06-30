@@ -156,23 +156,3 @@ async function createInitialPool(author, count, seed) {
   return { author: String(author), commitments: sorted, consumed: [], secrets: secrets }
 }
 
-function factorial(n) {
-  var r = 1
-  for (var i = 2; i <= n; i++) r *= i
-  return r
-}
-
-function rankToPermutation(rank, n) {
-  var r0 = rank - 1
-  var elements = []
-  for (var i = 0; i < n; i++) elements.push(i)
-  var perm = []
-  for (var i = n; i >= 1; i--) {
-    var fact = factorial(i - 1)
-    var idx = Math.floor(r0 / fact)
-    perm.push(elements[idx])
-    elements.splice(idx, 1)
-    r0 = r0 % fact
-  }
-  return perm
-}

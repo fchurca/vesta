@@ -223,11 +223,12 @@ UIInstance.prototype.showSetup = function () {
 
     var rawTitle = titleInput.value || defaultTitle
     await Game.start(count, Date.now(), rawTitle)
-    var perm = game.turnOrder
+    var pairs = []
+    for (var i = 0; i < count; i++) pairs.push({ name: names[i], color: playerColors[i] })
+    var shuffled = seededShuffle(pairs, game.playerSeed)
     for (var j = 0; j < game.players.length; j++) {
-      var pid = perm[j]
-      game.players[pid].name = truncateText(names[j] || "Player " + (j + 1), 64, 32)
-      game.players[pid].color = playerColors[j]
+      game.players[j].name = truncateText(shuffled[j].name || "Player " + (j + 1), 64, 32)
+      game.players[j].color = shuffled[j].color
     }
     Game.captureStartRecord()
 

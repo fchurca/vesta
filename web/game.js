@@ -51,16 +51,13 @@ var Game = {
       allPlayers.push(i)
       pools[i] = await createInitialPool(String(i), poolCount, urdSeed)
     }
-    var turnResult = await resolveRoll(pools, urdSeed, factorial(playerCount), allPlayers, "turn-order")
-    var turnPerm = rankToPermutation(turnResult.roll, playerCount)
-    var boardResult = await resolveRoll(turnResult.pools, urdSeed, URD_MAX_SIDES, allPlayers, "board-seed")
+    var boardResult = await resolveRoll(pools, urdSeed, URD_MAX_SIDES, allPlayers, "board-seed")
     var boardSeed = boardResult.roll
     game = createGame({ players: playerCount, roll: boardSeed, title: title || "" })
     game.turns = []
     game.currentTurnMoves = []
-    game.turnOrder = turnPerm
-    game.currentPlayer = turnPerm[0]
-    game.urd = { seed: urdSeed, pools: boardResult.pools, resolutions: [turnResult.resolution, boardResult.resolution] }
+    game.urd = { seed: urdSeed, pools: boardResult.pools, resolutions: [boardResult.resolution] }
+    game.playerSeed = boardSeed
     var deckFlat = []
     for (var cardType in DEV_CARD_COUNTS) {
       for (var j = 0; j < DEV_CARD_COUNTS[cardType]; j++) deckFlat.push(cardType)
@@ -85,13 +82,7 @@ var Game = {
   },
 
   rollDice: async function () {
-    var pos = game.turnOrder ? game.turnOrder.indexOf(game.currentPlayer) : -1
-    var nextPlayer
-    if (pos >= 0 && game.phase === "play") {
-      nextPlayer = game.turnOrder[(pos + 1) % game.turnOrder.length]
-    } else {
-      nextPlayer = (game.currentPlayer + 1) % game.players.length
-    }
+    var nextPlayer = (game.currentPlayer + 1) % game.players.length
     var urdResult = await resolveRoll(game.urd.pools, game.urd.seed, 36, [game.currentPlayer, nextPlayer], "roll-" + game.turn)
     var roll = urdResult.roll
     var d1 = Math.ceil(roll / 6)
