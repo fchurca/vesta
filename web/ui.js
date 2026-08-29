@@ -60,7 +60,7 @@ UIInstance.prototype.init = function () {
     var itemAction = item.getAttribute("data-gear")
     switch (itemAction) {
       case "new":
-        maybeConfirm(function () { game = null; clearGame(); self.showLanding() })
+        maybeConfirm(function () { game = null; clearGame(); self.showSetup() })
         break
       case "load":
         maybeConfirm(function () {
