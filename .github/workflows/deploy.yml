@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: node web/bake.mjs
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
   deploy:
