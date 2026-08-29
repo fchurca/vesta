@@ -689,6 +689,16 @@ describe("produce", () => {
     const gains = produce(g, 7)
     ok(gains.length === 0 || gains.every(gg => gg.amount === 0))
   })
+
+  it("does not produce from a tile occupied by the robber", () => {
+    let g = makeState()
+    const tile = g.board.tiles.find(t => t.number !== 7 && t.resource !== DESERT)
+    if (!tile) return
+    g = placeSettlement(g, 0, tile.coord.q, tile.coord.r, 0)
+    g = moveRobber(g, tile.coord.q, tile.coord.r)
+    const gains = produce(g, tile.number)
+    ok(gains.every(gg => gg.player !== 0))
+  })
 })
 
 describe("rollDice", () => {

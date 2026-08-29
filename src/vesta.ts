@@ -715,6 +715,7 @@ export function produce(
   for (let i = 0; i < state.board.tiles.length; i++) {
     const tile = state.board.tiles[i]!
     if (tile.resource === DESERT || tile.number !== total) continue
+    if (tile.coord.q === state.board.robber.q && tile.coord.r === state.board.robber.r) continue
 
     for (let c = 0; c < 6; c++) {
       const vk = vertexKey(tile.coord.q, tile.coord.r, c)
